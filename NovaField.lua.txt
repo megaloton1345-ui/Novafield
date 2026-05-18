@@ -1,19 +1,20 @@
 --[[
     ╔══════════════════════════════════════════════════════════════╗
-    ║                     NOVAFIELD v1.2.0                         ║
+    ║                     NOVAFIELD v1.3.0                         ║
     ║           Premium Roblox UI Framework                        ║
     ║      Smooth · Modern · Polished · Mobile-Ready               ║
-    ║  FIXES v1.2.0:                                               ║
-    ║   · Icon system: real Unicode symbols, no letters/emoji      ║
-    ║   · Slider: text properly aligned, knob centered on track    ║
-    ║   · Section chevron: ▼/▲ rotation animation                  ║
-    ║   · Dropdown chevron: ▼ rotates to ▲ when open              ║
-    ║   · Notifications: fixed slide-in, mobile bottom-right safe  ║
-    ║   · Startup popup: always shows before key/window            ║
-    ║   · Key popup icon: uses ⌘ symbol badge                      ║
-    ║   · Theme switching: all parts change correctly              ║
-    ║   · Mobile: badge side fixed, button sizes adapted           ║
-    ║   · Animations: spring/back easing on all interactions       ║
+    ║  FIXES v1.3.0:                                               ║
+    ║   · Atlas IconSystem integrated (auto icon support)          ║
+    ║   · Slider: card height fixed, desc below title, knob/       ║
+    ║     track/value perfectly aligned in one layout pass         ║
+    ║   · Shadow: position synced on window open + drag            ║
+    ║   · Float button: draggable on both mobile & PC              ║
+    ║   · Toggle: track/knob vertical centering fixed              ║
+    ║   · Tab bar: equal-width tabs, icon vertically centered      ║
+    ║   · Section header: left bar + title perfectly centered      ║
+    ║   · Card padding unified (16px H, 14px V) for all elements   ║
+    ║   · Notification: slide-in/out fully correct                 ║
+    ║   · UIListLayout used inside cards instead of manual Y pos   ║
     ╚══════════════════════════════════════════════════════════════╝
 
     USAGE EXAMPLE:
@@ -35,7 +36,7 @@
             Key       = {"MyKey123"},
             SaveKey   = true,
             GrabKey   = "https://discord.gg/yourserver",
-            KeyExpiry = 7200, -- 2 hours; 0 = no expiry
+            KeyExpiry = 7200,
         },
     })
 
@@ -64,70 +65,96 @@ local LocalPlayer = Players.LocalPlayer
 local Camera      = workspace.CurrentCamera
 
 -- ════════════════════════════════════════════════════════════════
--- ICON SYMBOLS — Clean Unicode, no emoji, renders on all devices
+-- ATLAS ICON SYSTEM (integrated)
+-- ════════════════════════════════════════════════════════════════
+local IconSystem = {}
+IconSystem.AtlasID     = "rbxassetid://YOUR_ATLAS_ID"  -- replace with your atlas
+IconSystem.IconSize     = 32
+IconSystem.IconsPerRow  = 20
+IconSystem.FallbackIcon = "circle"
+
+IconSystem.Icons = {
+    home=0, user=1, settings=2, search=3, menu=4, close=5, plus=6, minus=7,
+    check=8, arrowleft=9, arrowright=10, eye=11, eyeoff=12, lock=13, unlock=14,
+    bell=15, trash=16, folder=17, download=18, upload=19,
+    heart=20, star=21, camera=22, music=23, phone=24, mail=25, wifi=26,
+    battery=27, cloud=28, moon=29, sun=30, play=31, pause=32, stop=33,
+    refresh=34, edit=35, save=36, image=37, video=38, microphone=39,
+    shoppingcart=40, map=41, location=42, info=43, warning=44, help=45,
+    terminal=46, code=47, gamepad=48, trophy=49, circle=50,
+    shield=51, sword=52, combat=53, visuals=54, misc=55, dashboard=56, player=57,
+}
+
+IconSystem.Aliases = {
+    gear="settings", cog="settings", magnify="search", person="user",
+    account="user", profile="user", hamburger="menu", x="close",
+    favourite="heart", favorite="heart", bin="trash", picture="image",
+    mic="microphone", home_tab="home", bolt="star", zap="star",
+}
+
+local function _NormalizeIcon(name)
+    name = tostring(name):lower():gsub("[%s_%-]","")
+    return name
+end
+
+local function _ResolveIcon(name)
+    name = _NormalizeIcon(name)
+    if IconSystem.Aliases[name] then name = IconSystem.Aliases[name] end
+    return name
+end
+
+local function _GetIconIndex(name)
+    name = _ResolveIcon(name)
+    if IconSystem.Icons[name] then return IconSystem.Icons[name] end
+    for k,v in pairs(IconSystem.Icons) do
+        if string.find(k, name) then return v end
+    end
+    return IconSystem.Icons[IconSystem.FallbackIcon]
+end
+
+local function _CalcOffset(index)
+    local sz  = IconSystem.IconSize
+    local row = IconSystem.IconsPerRow
+    return Vector2.new((index % row)*sz, math.floor(index/row)*sz)
+end
+
+function IconSystem.SetIcon(obj, iconName)
+    if not obj then return end
+    local idx = _GetIconIndex(iconName)
+    if not idx then return end
+    local off = _CalcOffset(idx)
+    obj.Image              = IconSystem.AtlasID
+    obj.ImageRectOffset    = off
+    obj.ImageRectSize      = Vector2.new(IconSystem.IconSize, IconSystem.IconSize)
+end
+
+function IconSystem.NewImage(iconName, parent, size)
+    size = size or IconSystem.IconSize
+    local img = Instance.new("ImageLabel")
+    img.Name                 = iconName
+    img.BackgroundTransparency = 1
+    img.Size                 = UDim2.fromOffset(size, size)
+    IconSystem.SetIcon(img, iconName)
+    if parent then img.Parent = parent end
+    return img
+end
+
+-- ════════════════════════════════════════════════════════════════
+-- ICON SYMBOLS — Unicode fallback when no atlas is set
 -- ════════════════════════════════════════════════════════════════
 local Icons = {
-    home          = "⌂",
-    dashboard     = "▣",
-    grid          = "▦",
-    menu          = "☰",
-    user          = "◉",
-    users         = "◎",
-    profile       = "○",
-    search        = "⌕",
-    filter        = "≡",
-    settings      = "⊚",
-    tools         = "✦",
-    eye           = "◐",
-    eye_off       = "◑",
-    shield        = "⬒",
-    lock          = "⌺",
-    unlock        = "⌻",
-    key           = "⌘",
-    folder        = "▤",
-    file          = "▥",
-    terminal      = "❯",
-    code          = "{}",
-    play          = "▶",
-    pause         = "▮▮",
-    stop          = "■",
-    refresh       = "↻",
-    chevron_right = "›",
-    chevron_left  = "‹",
-    chevron_down  = "▾",
-    chevron_up    = "▴",
-    arrow_right   = "→",
-    arrow_left    = "←",
-    arrow_up      = "↑",
-    arrow_down    = "↓",
-    check         = "✓",
-    close         = "✕",
-    add           = "+",
-    remove        = "−",
-    info          = "ⓘ",
-    warning       = "⚠",
-    error_icon    = "✕",
-    success       = "✓",
-    bell          = "◈",
-    star          = "✦",
-    sparkles      = "✧",
-    zap           = "⋄",
-    bolt          = "⋄",
-    moon          = "◔",
-    sun           = "◕",
-    edit          = "✎",
-    trash         = "⌫",
-    discord       = "◈",
-    sword         = "†",
-    heart         = "♡",
-    combat        = "†",
-    player        = "◉",
-    visuals       = "◐",
-    misc          = "✦",
-    minimize      = "−",
-    maximize      = "□",
-    x_close       = "✕",
-    hashtag       = "▦",
+    home="⌂", dashboard="▣", grid="▦", menu="☰", user="◉", users="◎",
+    profile="○", search="⌕", filter="≡", settings="⊚", tools="✦",
+    eye="◐", eye_off="◑", shield="⬒", lock="⌺", unlock="⌻", key="⌘",
+    folder="▤", file="▥", terminal="❯", code="{}", play="▶", pause="▮▮",
+    stop="■", refresh="↻", chevron_right="›", chevron_left="‹",
+    chevron_down="▾", chevron_up="▴", arrow_right="→", arrow_left="←",
+    arrow_up="↑", arrow_down="↓", check="✓", close="✕", add="+",
+    remove="−", info="ⓘ", warning="⚠", error_icon="✕", success="✓",
+    bell="◈", star="✦", sparkles="✧", zap="⋄", bolt="⋄", moon="◔",
+    sun="◕", edit="✎", trash="⌫", discord="◈", sword="†", heart="♡",
+    combat="†", player="◉", visuals="◐", misc="✦", minimize="−",
+    maximize="□", x_close="✕", hashtag="▦",
 }
 
 -- ════════════════════════════════════════════════════════════════
@@ -145,20 +172,16 @@ end
 local function SafeCall(f, ...)
     if type(f) == "function" then
         local ok, err = pcall(f, ...)
-        if not ok then warn("[NovaField] Callback error: " .. tostring(err)) end
+        if not ok then warn("[NovaField] Callback error: "..tostring(err)) end
     end
 end
 
 local function New(class, props, children)
     local obj = Instance.new(class)
-    for k, v in pairs(props or {}) do
-        if k ~= "Parent" then
-            pcall(function() obj[k] = v end)
-        end
+    for k,v in pairs(props or {}) do
+        if k ~= "Parent" then pcall(function() obj[k] = v end) end
     end
-    for _, child in pairs(children or {}) do
-        child.Parent = obj
-    end
+    for _,child in pairs(children or {}) do child.Parent = obj end
     if props and props.Parent then obj.Parent = props.Parent end
     return obj
 end
@@ -190,13 +213,13 @@ local function MakeList(parent, padding, dir, halign, valign)
 end
 
 local function MakeCorner(parent, radius)
-    return New("UICorner", { Parent = parent, CornerRadius = UDim.new(0, radius or 10) })
+    return New("UICorner", { Parent=parent, CornerRadius=UDim.new(0, radius or 10) })
 end
 
 local function MakeStroke(parent, color, thickness, transparency)
     return New("UIStroke", {
         Parent       = parent,
-        Color        = color        or Color3.fromRGB(60, 20, 20),
+        Color        = color        or Color3.fromRGB(60,20,20),
         Thickness    = thickness    or 1,
         Transparency = transparency or 0,
     })
@@ -210,18 +233,18 @@ local function ScreenSize()
     return Camera.ViewportSize
 end
 
--- Create a symbol TextLabel
+-- Inline symbol TextLabel (used for Unicode icon fallback)
 local function SymLabel(parent, symbol, color, size, zIndex, anchorPoint, position, sizeUDim)
     return New("TextLabel", {
         Parent                 = parent,
         BackgroundTransparency = 1,
-        AnchorPoint            = anchorPoint or Vector2.new(0.5, 0.5),
-        Position               = position    or UDim2.new(0.5, 0, 0.5, 0),
-        Size                   = sizeUDim    or UDim2.new(1, 0, 1, 0),
+        AnchorPoint            = anchorPoint or Vector2.new(0.5,0.5),
+        Position               = position    or UDim2.new(0.5,0,0.5,0),
+        Size                   = sizeUDim    or UDim2.new(1,0,1,0),
         Text                   = symbol,
-        TextColor3             = color       or Color3.fromRGB(255, 255, 255),
+        TextColor3             = color       or Color3.fromRGB(255,255,255),
         TextSize               = size        or 16,
-        Font                   = Enum.Font.Code,  -- monospace renders symbols cleanly
+        Font                   = Enum.Font.Code,
         TextXAlignment         = Enum.TextXAlignment.Center,
         TextYAlignment         = Enum.TextYAlignment.Center,
         ZIndex                 = zIndex      or 5,
@@ -229,162 +252,116 @@ local function SymLabel(parent, symbol, color, size, zIndex, anchorPoint, positi
 end
 
 -- ════════════════════════════════════════════════════════════════
+-- ICON HELPER — uses Atlas if ID is set, else Unicode symbol
+-- ════════════════════════════════════════════════════════════════
+local function MakeTabIcon(parent, iconName, color, size, zIndex)
+    local hasAtlas = IconSystem.AtlasID ~= "rbxassetid://YOUR_ATLAS_ID"
+    if hasAtlas then
+        local sz = size or 20
+        local img = New("ImageLabel", {
+            Parent                 = parent,
+            BackgroundTransparency = 1,
+            AnchorPoint            = Vector2.new(0.5, 0.5),
+            Position               = UDim2.new(0.5, 0, 0.5, 0),
+            Size                   = UDim2.fromOffset(sz, sz),
+            ImageColor3            = color or Color3.fromRGB(255,255,255),
+            ZIndex                 = zIndex or 5,
+        })
+        IconSystem.SetIcon(img, iconName)
+        return img
+    else
+        local symbol = Icons[_NormalizeIcon(iconName)] or iconName:sub(1,1):upper()
+        return SymLabel(parent, symbol, color, size or 16, zIndex or 5)
+    end
+end
+
+-- ════════════════════════════════════════════════════════════════
 -- THEME ENGINE
 -- ════════════════════════════════════════════════════════════════
 local Themes = {
     Nova = {
-        Background  = Color3.fromRGB(18, 5, 5),
-        Card        = Color3.fromRGB(30, 10, 10),
-        CardAlt     = Color3.fromRGB(24, 7, 7),
-        Border      = Color3.fromRGB(55, 18, 18),
-        Accent      = Color3.fromRGB(230, 60, 75),
-        AccentDark  = Color3.fromRGB(175, 35, 50),
-        Text        = Color3.fromRGB(245, 235, 235),
-        SubText     = Color3.fromRGB(155, 95, 100),
-        Muted       = Color3.fromRGB(85, 45, 48),
-        Toggle      = Color3.fromRGB(48, 15, 18),
-        ScrollBar   = Color3.fromRGB(90, 28, 32),
-        TopBar      = Color3.fromRGB(20, 6, 6),
-        TabActive   = Color3.fromRGB(230, 60, 75),
-        TabInactive = Color3.fromRGB(110, 55, 60),
-        SectionBar  = Color3.fromRGB(230, 60, 75),
-        KeyBg       = Color3.fromRGB(14, 4, 4),
-        KeyAccent   = Color3.fromRGB(230, 60, 75),
+        Background="18,5,5", Card="30,10,10", CardAlt="24,7,7",
+        Border="55,18,18", Accent="230,60,75", AccentDark="175,35,50",
+        Text="245,235,235", SubText="155,95,100", Muted="85,45,48",
+        Toggle="48,15,18", ScrollBar="90,28,32", TopBar="20,6,6",
+        TabActive="230,60,75", TabInactive="110,55,60", SectionBar="230,60,75",
+        KeyBg="14,4,4", KeyAccent="230,60,75",
     },
     AMOLED = {
-        Background  = Color3.fromRGB(0, 0, 0),
-        Card        = Color3.fromRGB(12, 4, 4),
-        CardAlt     = Color3.fromRGB(8, 2, 2),
-        Border      = Color3.fromRGB(38, 14, 14),
-        Accent      = Color3.fromRGB(220, 55, 70),
-        AccentDark  = Color3.fromRGB(160, 30, 44),
-        Text        = Color3.fromRGB(245, 235, 235),
-        SubText     = Color3.fromRGB(140, 85, 90),
-        Muted       = Color3.fromRGB(70, 35, 38),
-        Toggle      = Color3.fromRGB(36, 12, 14),
-        ScrollBar   = Color3.fromRGB(70, 22, 26),
-        TopBar      = Color3.fromRGB(6, 2, 2),
-        TabActive   = Color3.fromRGB(220, 55, 70),
-        TabInactive = Color3.fromRGB(100, 50, 55),
-        SectionBar  = Color3.fromRGB(220, 55, 70),
-        KeyBg       = Color3.fromRGB(0, 0, 0),
-        KeyAccent   = Color3.fromRGB(220, 55, 70),
+        Background="0,0,0", Card="12,4,4", CardAlt="8,2,2",
+        Border="38,14,14", Accent="220,55,70", AccentDark="160,30,44",
+        Text="245,235,235", SubText="140,85,90", Muted="70,35,38",
+        Toggle="36,12,14", ScrollBar="70,22,26", TopBar="6,2,2",
+        TabActive="220,55,70", TabInactive="100,50,55", SectionBar="220,55,70",
+        KeyBg="0,0,0", KeyAccent="220,55,70",
     },
     Frost = {
-        Background  = Color3.fromRGB(10, 14, 26),
-        Card        = Color3.fromRGB(16, 22, 42),
-        CardAlt     = Color3.fromRGB(12, 18, 34),
-        Border      = Color3.fromRGB(30, 42, 80),
-        Accent      = Color3.fromRGB(90, 140, 255),
-        AccentDark  = Color3.fromRGB(55, 95, 210),
-        Text        = Color3.fromRGB(230, 238, 255),
-        SubText     = Color3.fromRGB(115, 135, 190),
-        Muted       = Color3.fromRGB(55, 70, 120),
-        Toggle      = Color3.fromRGB(22, 32, 65),
-        ScrollBar   = Color3.fromRGB(45, 60, 120),
-        TopBar      = Color3.fromRGB(12, 16, 30),
-        TabActive   = Color3.fromRGB(90, 140, 255),
-        TabInactive = Color3.fromRGB(75, 100, 170),
-        SectionBar  = Color3.fromRGB(90, 140, 255),
-        KeyBg       = Color3.fromRGB(8, 11, 20),
-        KeyAccent   = Color3.fromRGB(90, 140, 255),
+        Background="10,14,26", Card="16,22,42", CardAlt="12,18,34",
+        Border="30,42,80", Accent="90,140,255", AccentDark="55,95,210",
+        Text="230,238,255", SubText="115,135,190", Muted="55,70,120",
+        Toggle="22,32,65", ScrollBar="45,60,120", TopBar="12,16,30",
+        TabActive="90,140,255", TabInactive="75,100,170", SectionBar="90,140,255",
+        KeyBg="8,11,20", KeyAccent="90,140,255",
     },
     Ocean = {
-        Background  = Color3.fromRGB(4, 16, 26),
-        Card        = Color3.fromRGB(7, 26, 42),
-        CardAlt     = Color3.fromRGB(5, 20, 34),
-        Border      = Color3.fromRGB(14, 48, 70),
-        Accent      = Color3.fromRGB(28, 175, 210),
-        AccentDark  = Color3.fromRGB(18, 125, 155),
-        Text        = Color3.fromRGB(205, 240, 255),
-        SubText     = Color3.fromRGB(90, 160, 190),
-        Muted       = Color3.fromRGB(35, 90, 120),
-        Toggle      = Color3.fromRGB(8, 42, 66),
-        ScrollBar   = Color3.fromRGB(18, 78, 108),
-        TopBar      = Color3.fromRGB(4, 18, 30),
-        TabActive   = Color3.fromRGB(28, 175, 210),
-        TabInactive = Color3.fromRGB(45, 130, 160),
-        SectionBar  = Color3.fromRGB(28, 175, 210),
-        KeyBg       = Color3.fromRGB(3, 12, 20),
-        KeyAccent   = Color3.fromRGB(28, 175, 210),
+        Background="4,16,26", Card="7,26,42", CardAlt="5,20,34",
+        Border="14,48,70", Accent="28,175,210", AccentDark="18,125,155",
+        Text="205,240,255", SubText="90,160,190", Muted="35,90,120",
+        Toggle="8,42,66", ScrollBar="18,78,108", TopBar="4,18,30",
+        TabActive="28,175,210", TabInactive="45,130,160", SectionBar="28,175,210",
+        KeyBg="3,12,20", KeyAccent="28,175,210",
     },
     Ember = {
-        Background  = Color3.fromRGB(20, 8, 0),
-        Card        = Color3.fromRGB(34, 14, 0),
-        CardAlt     = Color3.fromRGB(26, 10, 0),
-        Border      = Color3.fromRGB(66, 28, 0),
-        Accent      = Color3.fromRGB(255, 110, 30),
-        AccentDark  = Color3.fromRGB(200, 75, 15),
-        Text        = Color3.fromRGB(255, 240, 225),
-        SubText     = Color3.fromRGB(180, 115, 75),
-        Muted       = Color3.fromRGB(100, 55, 25),
-        Toggle      = Color3.fromRGB(55, 20, 0),
-        ScrollBar   = Color3.fromRGB(100, 38, 5),
-        TopBar      = Color3.fromRGB(18, 6, 0),
-        TabActive   = Color3.fromRGB(255, 110, 30),
-        TabInactive = Color3.fromRGB(165, 75, 30),
-        SectionBar  = Color3.fromRGB(255, 110, 30),
-        KeyBg       = Color3.fromRGB(14, 5, 0),
-        KeyAccent   = Color3.fromRGB(255, 110, 30),
+        Background="20,8,0", Card="34,14,0", CardAlt="26,10,0",
+        Border="66,28,0", Accent="255,110,30", AccentDark="200,75,15",
+        Text="255,240,225", SubText="180,115,75", Muted="100,55,25",
+        Toggle="55,20,0", ScrollBar="100,38,5", TopBar="18,6,0",
+        TabActive="255,110,30", TabInactive="165,75,30", SectionBar="255,110,30",
+        KeyBg="14,5,0", KeyAccent="255,110,30",
     },
     Verdant = {
-        Background  = Color3.fromRGB(3, 16, 10),
-        Card        = Color3.fromRGB(5, 28, 18),
-        CardAlt     = Color3.fromRGB(4, 22, 14),
-        Border      = Color3.fromRGB(12, 52, 34),
-        Accent      = Color3.fromRGB(28, 200, 115),
-        AccentDark  = Color3.fromRGB(18, 148, 84),
-        Text        = Color3.fromRGB(205, 255, 230),
-        SubText     = Color3.fromRGB(85, 168, 125),
-        Muted       = Color3.fromRGB(32, 88, 58),
-        Toggle      = Color3.fromRGB(7, 44, 26),
-        ScrollBar   = Color3.fromRGB(14, 78, 48),
-        TopBar      = Color3.fromRGB(3, 18, 12),
-        TabActive   = Color3.fromRGB(28, 200, 115),
-        TabInactive = Color3.fromRGB(36, 136, 86),
-        SectionBar  = Color3.fromRGB(28, 200, 115),
-        KeyBg       = Color3.fromRGB(2, 12, 7),
-        KeyAccent   = Color3.fromRGB(28, 200, 115),
+        Background="3,16,10", Card="5,28,18", CardAlt="4,22,14",
+        Border="12,52,34", Accent="28,200,115", AccentDark="18,148,84",
+        Text="205,255,230", SubText="85,168,125", Muted="32,88,58",
+        Toggle="7,44,26", ScrollBar="14,78,48", TopBar="3,18,12",
+        TabActive="28,200,115", TabInactive="36,136,86", SectionBar="28,200,115",
+        KeyBg="2,12,7", KeyAccent="28,200,115",
     },
     Violet = {
-        Background  = Color3.fromRGB(12, 6, 22),
-        Card        = Color3.fromRGB(20, 12, 40),
-        CardAlt     = Color3.fromRGB(16, 9, 32),
-        Border      = Color3.fromRGB(44, 22, 76),
-        Accent      = Color3.fromRGB(165, 96, 255),
-        AccentDark  = Color3.fromRGB(115, 64, 205),
-        Text        = Color3.fromRGB(232, 218, 255),
-        SubText     = Color3.fromRGB(145, 115, 198),
-        Muted       = Color3.fromRGB(75, 50, 125),
-        Toggle      = Color3.fromRGB(32, 15, 62),
-        ScrollBar   = Color3.fromRGB(68, 36, 128),
-        TopBar      = Color3.fromRGB(14, 8, 26),
-        TabActive   = Color3.fromRGB(165, 96, 255),
-        TabInactive = Color3.fromRGB(112, 76, 180),
-        SectionBar  = Color3.fromRGB(165, 96, 255),
-        KeyBg       = Color3.fromRGB(9, 4, 16),
-        KeyAccent   = Color3.fromRGB(165, 96, 255),
+        Background="12,6,22", Card="20,12,40", CardAlt="16,9,32",
+        Border="44,22,76", Accent="165,96,255", AccentDark="115,64,205",
+        Text="232,218,255", SubText="145,115,198", Muted="75,50,125",
+        Toggle="32,15,62", ScrollBar="68,36,128", TopBar="14,8,26",
+        TabActive="165,96,255", TabInactive="112,76,180", SectionBar="165,96,255",
+        KeyBg="9,4,16", KeyAccent="165,96,255",
     },
     Neon = {
-        Background  = Color3.fromRGB(2, 2, 12),
-        Card        = Color3.fromRGB(5, 5, 22),
-        CardAlt     = Color3.fromRGB(3, 3, 16),
-        Border      = Color3.fromRGB(10, 10, 40),
-        Accent      = Color3.fromRGB(0, 255, 168),
-        AccentDark  = Color3.fromRGB(0, 178, 118),
-        Text        = Color3.fromRGB(205, 255, 238),
-        SubText     = Color3.fromRGB(75, 198, 158),
-        Muted       = Color3.fromRGB(28, 96, 76),
-        Toggle      = Color3.fromRGB(4, 32, 26),
-        ScrollBar   = Color3.fromRGB(8, 76, 58),
-        TopBar      = Color3.fromRGB(3, 3, 14),
-        TabActive   = Color3.fromRGB(0, 255, 168),
-        TabInactive = Color3.fromRGB(0, 155, 118),
-        SectionBar  = Color3.fromRGB(0, 255, 168),
-        KeyBg       = Color3.fromRGB(1, 1, 8),
-        KeyAccent   = Color3.fromRGB(0, 255, 168),
+        Background="2,2,12", Card="5,5,22", CardAlt="3,3,16",
+        Border="10,10,40", Accent="0,255,168", AccentDark="0,178,118",
+        Text="205,255,238", SubText="75,198,158", Muted="28,96,76",
+        Toggle="4,32,26", ScrollBar="8,76,58", TopBar="3,3,14",
+        TabActive="0,255,168", TabInactive="0,155,118", SectionBar="0,255,168",
+        KeyBg="1,1,8", KeyAccent="0,255,168",
     },
 }
+
+-- Convert rgb string table to Color3 table
+local function BuildTheme(t)
+    local out = {}
+    for k, v in pairs(t) do
+        if type(v) == "string" then
+            local r,g,b = v:match("(%d+),(%d+),(%d+)")
+            out[k] = Color3.fromRGB(tonumber(r),tonumber(g),tonumber(b))
+        else
+            out[k] = v
+        end
+    end
+    return out
+end
+
+for name, t in pairs(Themes) do
+    Themes[name] = BuildTheme(t)
+end
 
 -- ════════════════════════════════════════════════════════════════
 -- SAVE SYSTEM
@@ -433,8 +410,6 @@ end
 
 -- ════════════════════════════════════════════════════════════════
 -- NOTIFICATION SYSTEM
--- Fixed: correct slide-in from right, mobile safe zone respected,
---        all theme parts update, animation improved
 -- ════════════════════════════════════════════════════════════════
 local NotifActive = 0
 local MAX_NOTIFS  = 4
@@ -450,15 +425,12 @@ local function ShowNotification(options, theme, screenGui)
 
     local typeColors = {
         Info    = theme.Accent,
-        Success = Color3.fromRGB(28, 200, 115),
-        Warning = Color3.fromRGB(255, 175, 28),
-        Error   = Color3.fromRGB(255, 55, 55),
+        Success = Color3.fromRGB(28,200,115),
+        Warning = Color3.fromRGB(255,175,28),
+        Error   = Color3.fromRGB(255,55,55),
     }
     local typeIcons = {
-        Info    = Icons.info,
-        Success = Icons.check,
-        Warning = Icons.warning,
-        Error   = Icons.error_icon,
+        Info=Icons.info, Success=Icons.check, Warning=Icons.warning, Error=Icons.error_icon,
     }
     local accentColor = typeColors[nType] or theme.Accent
     local typeIcon    = typeIcons[nType]  or Icons.info
@@ -466,23 +438,21 @@ local function ShowNotification(options, theme, screenGui)
     local mobile = IsMobile()
     local vp     = ScreenSize()
 
-    -- Holder anchored to bottom-right, respects mobile safe zone
     local NotifHolder = screenGui:FindFirstChild("NovaNotifHolder")
     if not NotifHolder then
-        local rightPad  = 16
-        local bottomPad = mobile and 80 or 16  -- above jump button on mobile
+        local bottomPad = mobile and 85 or 16
         NotifHolder = New("Frame", {
             Name                   = "NovaNotifHolder",
             Parent                 = screenGui,
             BackgroundTransparency = 1,
-            AnchorPoint            = Vector2.new(1, 1),
-            Position               = UDim2.new(1, -rightPad, 1, -bottomPad),
-            Size                   = UDim2.new(0, 300, 1, -(bottomPad + 16)),
+            AnchorPoint            = Vector2.new(1,1),
+            Position               = UDim2.new(1,-16,1,-bottomPad),
+            Size                   = UDim2.new(0,300,1,-(bottomPad+16)),
             ZIndex                 = 50,
         })
         New("UIListLayout", {
             Parent              = NotifHolder,
-            Padding             = UDim.new(0, 8),
+            Padding             = UDim.new(0,8),
             FillDirection       = Enum.FillDirection.Vertical,
             VerticalAlignment   = Enum.VerticalAlignment.Bottom,
             HorizontalAlignment = Enum.HorizontalAlignment.Right,
@@ -490,36 +460,39 @@ local function ShowNotification(options, theme, screenGui)
         })
     end
 
+    local NOTIF_W = NotifHolder.Size.X.Offset
+
     local Notif = New("Frame", {
         Parent                 = NotifHolder,
         BackgroundColor3       = theme.Card,
-        Size                   = UDim2.new(1, 0, 0, 72),
+        Size                   = UDim2.new(1,0,0,72),
         BackgroundTransparency = 0.03,
         ClipsDescendants       = false,
         ZIndex                 = 51,
+        -- start off-screen to the right
+        Position               = UDim2.new(1, NOTIF_W + 20, 0, 0),
     })
     Tag(Notif, "Card")
     MakeCorner(Notif, 14)
     MakeStroke(Notif, accentColor, 1, 0.35)
 
     -- Left accent stripe
-    local AccentStripe = New("Frame", {
+    New("Frame", {
         Parent           = Notif,
         BackgroundColor3 = accentColor,
-        Size             = UDim2.new(0, 3, 1, 0),
+        Size             = UDim2.new(0,3,1,0),
         ZIndex           = 52,
     })
-    MakeCorner(AccentStripe, 2)
 
-    -- Icon badge
+    -- Icon badge (vertically centered, left side)
     local IconBadge = New("Frame", {
-        Parent           = Notif,
-        BackgroundColor3 = accentColor,
+        Parent                 = Notif,
+        BackgroundColor3       = accentColor,
         BackgroundTransparency = 0.85,
-        AnchorPoint      = Vector2.new(0, 0.5),
-        Position         = UDim2.new(0, 12, 0.5, 0),
-        Size             = UDim2.new(0, 30, 0, 30),
-        ZIndex           = 53,
+        AnchorPoint            = Vector2.new(0,0.5),
+        Position               = UDim2.new(0,12,0.5,0),
+        Size                   = UDim2.new(0,30,0,30),
+        ZIndex                 = 53,
     })
     MakeCorner(IconBadge, 8)
     SymLabel(IconBadge, typeIcon, accentColor, 14, 54)
@@ -527,8 +500,8 @@ local function ShowNotification(options, theme, screenGui)
     local Inner = New("Frame", {
         Parent                 = Notif,
         BackgroundTransparency = 1,
-        Position               = UDim2.new(0, 50, 0, 0),
-        Size                   = UDim2.new(1, -58, 1, 0),
+        Position               = UDim2.new(0,50,0,0),
+        Size                   = UDim2.new(1,-58,1,0),
         ZIndex                 = 53,
     })
     MakePadding(Inner, 12, 12, 0, 8)
@@ -537,7 +510,7 @@ local function ShowNotification(options, theme, screenGui)
     New("TextLabel", {
         Parent                 = Inner,
         BackgroundTransparency = 1,
-        Size                   = UDim2.new(1, 0, 0, 18),
+        Size                   = UDim2.new(1,0,0,18),
         Text                   = T_title,
         TextColor3             = theme.Text,
         TextSize               = 13,
@@ -551,7 +524,7 @@ local function ShowNotification(options, theme, screenGui)
         New("TextLabel", {
             Parent                 = Inner,
             BackgroundTransparency = 1,
-            Size                   = UDim2.new(1, 0, 0, 0),
+            Size                   = UDim2.new(1,0,0,0),
             AutomaticSize          = Enum.AutomaticSize.Y,
             Text                   = C,
             TextColor3             = theme.SubText,
@@ -568,29 +541,30 @@ local function ShowNotification(options, theme, screenGui)
     local ProgBg = New("Frame", {
         Parent           = Notif,
         BackgroundColor3 = theme.Border,
-        AnchorPoint      = Vector2.new(0, 1),
-        Position         = UDim2.new(0, 0, 1, 0),
-        Size             = UDim2.new(1, 0, 0, 2),
+        AnchorPoint      = Vector2.new(0,1),
+        Position         = UDim2.new(0,0,1,0),
+        Size             = UDim2.new(1,0,0,2),
         ZIndex           = 54,
     })
     MakeCorner(ProgBg, 2)
     local ProgFill = New("Frame", {
         Parent           = ProgBg,
         BackgroundColor3 = accentColor,
-        Size             = UDim2.new(1, 0, 1, 0),
+        Size             = UDim2.new(1,0,1,0),
         ZIndex           = 55,
     })
     MakeCorner(ProgFill, 2)
 
-    -- Slide in from right (off screen), then slide out
-    Notif.Position = UDim2.new(1, 320, 0, 0)
+    -- Slide in (UIListLayout positions; we animate the frame relative to holder)
     task.defer(function()
+        -- Reset position: UIListLayout controls Y, we just slide X
+        Notif.Position = UDim2.new(1, NOTIF_W+20, 0, 0)
         Tween(Notif, { Position = UDim2.new(0, 0, 0, 0) }, 0.38, Enum.EasingStyle.Back, Enum.EasingDirection.Out)
-        Tween(ProgFill, { Size = UDim2.new(0, 0, 1, 0) }, dur, Enum.EasingStyle.Linear)
+        Tween(ProgFill, { Size = UDim2.new(0,0,1,0) }, dur, Enum.EasingStyle.Linear)
     end)
 
     task.delay(dur, function()
-        Tween(Notif, { Position = UDim2.new(1, 320, 0, 0) }, 0.28, Enum.EasingStyle.Quart, Enum.EasingDirection.In)
+        Tween(Notif, { Position = UDim2.new(1, NOTIF_W+20, 0, 0) }, 0.28, Enum.EasingStyle.Quart, Enum.EasingDirection.In)
         task.wait(0.32)
         if Notif and Notif.Parent then Notif:Destroy() end
         NotifActive = math.max(0, NotifActive - 1)
@@ -599,7 +573,6 @@ end
 
 -- ════════════════════════════════════════════════════════════════
 -- STARTUP POPUP
--- Fixed: always shown, centered, icon uses ⋄ symbol
 -- ════════════════════════════════════════════════════════════════
 local function ShowStartupPopup(opts, theme, screenGui, onDone)
     local Title = opts.Title       or "NovaField"
@@ -609,18 +582,18 @@ local function ShowStartupPopup(opts, theme, screenGui, onDone)
 
     local Overlay = New("Frame", {
         Parent                 = screenGui,
-        BackgroundColor3       = Color3.fromRGB(0, 0, 0),
+        BackgroundColor3       = Color3.fromRGB(0,0,0),
         BackgroundTransparency = 1,
-        Size                   = UDim2.new(1, 0, 1, 0),
+        Size                   = UDim2.new(1,0,1,0),
         ZIndex                 = 100,
     })
 
     local PopupFrame = New("Frame", {
         Parent                 = Overlay,
         BackgroundColor3       = theme.Card,
-        AnchorPoint            = Vector2.new(0.5, 0.5),
-        Position               = UDim2.new(0.5, 0, 0.5, 0),
-        Size                   = UDim2.new(0, 310, 0, 0),
+        AnchorPoint            = Vector2.new(0.5,0.5),
+        Position               = UDim2.new(0.5,0,0.5,0),
+        Size                   = UDim2.new(0,310,0,0),
         AutomaticSize          = Enum.AutomaticSize.Y,
         ZIndex                 = 101,
         ClipsDescendants       = true,
@@ -628,19 +601,18 @@ local function ShowStartupPopup(opts, theme, screenGui, onDone)
     MakeCorner(PopupFrame, 22)
     MakeStroke(PopupFrame, theme.Accent, 1, 0.3)
 
-    -- Top accent strip
     New("Frame", {
         Parent           = PopupFrame,
         BackgroundColor3 = theme.Accent,
-        Size             = UDim2.new(1, 0, 0, 3),
+        Size             = UDim2.new(1,0,0,3),
         ZIndex           = 102,
     })
 
     local PopupInner = New("Frame", {
         Parent                 = PopupFrame,
         BackgroundTransparency = 1,
-        Position               = UDim2.new(0, 0, 0, 3),
-        Size                   = UDim2.new(1, 0, 0, 0),
+        Position               = UDim2.new(0,0,0,3),
+        Size                   = UDim2.new(1,0,0,0),
         AutomaticSize          = Enum.AutomaticSize.Y,
         ZIndex                 = 102,
     })
@@ -649,15 +621,14 @@ local function ShowStartupPopup(opts, theme, screenGui, onDone)
         Parent              = PopupInner,
         HorizontalAlignment = Enum.HorizontalAlignment.Center,
         FillDirection       = Enum.FillDirection.Vertical,
-        Padding             = UDim.new(0, 12),
+        Padding             = UDim.new(0,12),
         SortOrder           = Enum.SortOrder.LayoutOrder,
     })
 
-    -- Icon badge with ⋄ bolt symbol
     local IconBadgePop = New("Frame", {
         Parent           = PopupInner,
         BackgroundColor3 = theme.Accent,
-        Size             = UDim2.new(0, 58, 0, 58),
+        Size             = UDim2.new(0,58,0,58),
         ZIndex           = 103,
         LayoutOrder      = 0,
     })
@@ -668,7 +639,7 @@ local function ShowStartupPopup(opts, theme, screenGui, onDone)
     New("TextLabel", {
         Parent                 = PopupInner,
         BackgroundTransparency = 1,
-        Size                   = UDim2.new(1, 0, 0, 24),
+        Size                   = UDim2.new(1,0,0,24),
         Text                   = Title,
         TextColor3             = theme.Text,
         TextSize               = 19,
@@ -682,7 +653,7 @@ local function ShowStartupPopup(opts, theme, screenGui, onDone)
         New("TextLabel", {
             Parent                 = PopupInner,
             BackgroundTransparency = 1,
-            Size                   = UDim2.new(1, 0, 0, 16),
+            Size                   = UDim2.new(1,0,0,16),
             Text                   = Sub,
             TextColor3             = theme.SubText,
             TextSize               = 12,
@@ -693,11 +664,10 @@ local function ShowStartupPopup(opts, theme, screenGui, onDone)
         })
     end
 
-    -- Progress bar
     local BarBg = New("Frame", {
         Parent           = PopupInner,
         BackgroundColor3 = theme.Border,
-        Size             = UDim2.new(1, 0, 0, 4),
+        Size             = UDim2.new(1,0,0,4),
         ZIndex           = 103,
         LayoutOrder      = 3,
     })
@@ -705,21 +675,20 @@ local function ShowStartupPopup(opts, theme, screenGui, onDone)
     local BarFill = New("Frame", {
         Parent           = BarBg,
         BackgroundColor3 = theme.Accent,
-        Size             = UDim2.new(0, 0, 1, 0),
+        Size             = UDim2.new(0,0,1,0),
         ZIndex           = 104,
     })
     MakeCorner(BarFill, 2)
 
-    -- Animate in
-    Tween(Overlay, { BackgroundTransparency = 0.28 }, 0.3)
-    Tween(PopupFrame, { Size = UDim2.new(0, 310, 0, 220) }, 0.5, Enum.EasingStyle.Back)
+    Tween(Overlay,     { BackgroundTransparency = 0.28 }, 0.3)
+    Tween(PopupFrame,  { Size = UDim2.new(0,310,0,220) }, 0.5, Enum.EasingStyle.Back)
     task.delay(0.15, function()
-        Tween(BarFill, { Size = UDim2.new(1, 0, 1, 0) }, dur - 0.55, Enum.EasingStyle.Linear)
+        Tween(BarFill, { Size = UDim2.new(1,0,1,0) }, dur-0.55, Enum.EasingStyle.Linear)
     end)
 
     task.delay(dur, function()
-        Tween(Overlay, { BackgroundTransparency = 1 }, 0.38)
-        Tween(PopupFrame, { Size = UDim2.new(0, 310, 0, 0) }, 0.28, Enum.EasingStyle.Quart, Enum.EasingDirection.In)
+        Tween(Overlay,    { BackgroundTransparency = 1 }, 0.38)
+        Tween(PopupFrame, { Size = UDim2.new(0,310,0,0) }, 0.28, Enum.EasingStyle.Quart, Enum.EasingDirection.In)
         task.wait(0.42)
         if Overlay and Overlay.Parent then Overlay:Destroy() end
         if onDone then onDone() end
@@ -728,56 +697,52 @@ end
 
 -- ════════════════════════════════════════════════════════════════
 -- KEY SYSTEM
--- Fixed: ⌘ icon badge, theme-aware, expiry support
 -- ════════════════════════════════════════════════════════════════
 local function ShowKeySystem(opts, theme, screenGui, onSuccess)
-    local title         = opts.Title    or "Nova Access"
-    local subtitle      = opts.SubTitle or "Verification Required"
-    local validKeys     = opts.Key      or {}
-    local saveKey_f     = opts.SaveKey  == true
-    local grabURL       = opts.GrabKey  or ""
-    local keyExpiry     = opts.KeyExpiry or 0
+    local title        = opts.Title    or "Nova Access"
+    local subtitle     = opts.SubTitle or "Verification Required"
+    local validKeys    = opts.Key      or {}
+    local saveKey_f    = opts.SaveKey  == true
+    local grabURL      = opts.GrabKey  or ""
+    local keyExpiry    = opts.KeyExpiry or 0
     local savedKeyPath  = "NovaField/__key.txt"
     local savedTimePath = "NovaField/__keytime.txt"
 
-    -- Check saved key + expiry
     local savedKeyValid = false
     if saveKey_f then
         local ok, result = pcall(function()
             if isfile and isfile(savedKeyPath) then
-                local stored = readfile(savedKeyPath)
+                local stored  = readfile(savedKeyPath)
                 local expired = false
                 if keyExpiry > 0 and isfile and isfile(savedTimePath) then
-                    local timeStr = readfile(savedTimePath)
+                    local timeStr  = readfile(savedTimePath)
                     local savedTime = tonumber(timeStr) or 0
                     if (os.time() - savedTime) >= keyExpiry then
                         expired = true
-                        pcall(function() writefile(savedKeyPath, "") end)
-                        pcall(function() writefile(savedTimePath, "") end)
+                        pcall(function() writefile(savedKeyPath,"") end)
+                        pcall(function() writefile(savedTimePath,"") end)
                     end
                 end
                 if not expired then
-                    for _, k in ipairs(validKeys) do
-                        if stored == k then return true end
-                    end
+                    for _,k in ipairs(validKeys) do if stored==k then return true end end
                 end
             end
             return false
         end)
-        if ok and result == true then savedKeyValid = true end
+        if ok and result==true then savedKeyValid=true end
     end
     if savedKeyValid then onSuccess(); return end
 
     local Overlay = New("Frame", {
         Parent                 = screenGui,
-        BackgroundColor3       = Color3.fromRGB(0, 0, 0),
+        BackgroundColor3       = Color3.fromRGB(0,0,0),
         BackgroundTransparency = 0.4,
-        Size                   = UDim2.new(1, 0, 1, 0),
+        Size                   = UDim2.new(1,0,1,0),
         ZIndex                 = 200,
     })
 
     local function CloseKeyPanel()
-        Tween(Overlay, { BackgroundTransparency = 1 }, 0.3)
+        Tween(Overlay, { BackgroundTransparency=1 }, 0.3)
         task.delay(0.32, function()
             if Overlay and Overlay.Parent then Overlay:Destroy() end
         end)
@@ -786,9 +751,9 @@ local function ShowKeySystem(opts, theme, screenGui, onSuccess)
     local Panel = New("Frame", {
         Parent                 = Overlay,
         BackgroundColor3       = theme.KeyBg or theme.Background,
-        AnchorPoint            = Vector2.new(0.5, 0.5),
-        Position               = UDim2.new(0.5, 0, 0.65, 0),
-        Size                   = UDim2.new(0, 330, 0, 0),
+        AnchorPoint            = Vector2.new(0.5,0.5),
+        Position               = UDim2.new(0.5,0,0.65,0),
+        Size                   = UDim2.new(0,330,0,0),
         AutomaticSize          = Enum.AutomaticSize.Y,
         ZIndex                 = 201,
         ClipsDescendants       = true,
@@ -796,127 +761,82 @@ local function ShowKeySystem(opts, theme, screenGui, onSuccess)
     MakeCorner(Panel, 22)
     MakeStroke(Panel, theme.KeyAccent or theme.Accent, 1, 0.25)
 
-    -- Top accent strip
     New("Frame", {
         Parent           = Panel,
         BackgroundColor3 = theme.KeyAccent or theme.Accent,
-        Size             = UDim2.new(1, 0, 0, 4),
+        Size             = UDim2.new(1,0,0,3),
         ZIndex           = 202,
     })
 
-    -- X close button (top-right)
-    local CloseX = New("TextButton", {
+    local PInner = New("Frame", {
         Parent                 = Panel,
         BackgroundTransparency = 1,
-        AnchorPoint            = Vector2.new(1, 0),
-        Position               = UDim2.new(1, -10, 0, 8),
-        Size                   = UDim2.new(0, 28, 0, 28),
-        Text                   = Icons.close,
-        TextColor3             = theme.Muted,
-        TextSize               = 15,
-        Font                   = Enum.Font.Code,
-        ZIndex                 = 210,
-    })
-    CloseX.MouseButton1Click:Connect(CloseKeyPanel)
-    CloseX.MouseEnter:Connect(function() Tween(CloseX, { TextColor3 = theme.Text }, 0.15) end)
-    CloseX.MouseLeave:Connect(function() Tween(CloseX, { TextColor3 = theme.Muted }, 0.15) end)
-
-    local Inner = New("Frame", {
-        Parent                 = Panel,
-        BackgroundTransparency = 1,
-        Position               = UDim2.new(0, 0, 0, 4),
-        Size                   = UDim2.new(1, 0, 0, 0),
+        Position               = UDim2.new(0,0,0,3),
+        Size                   = UDim2.new(1,0,0,0),
         AutomaticSize          = Enum.AutomaticSize.Y,
         ZIndex                 = 202,
     })
-    MakePadding(Inner, 28, 30, 26, 26)
+    MakePadding(PInner, 28, 28, 26, 26)
     New("UIListLayout", {
-        Parent              = Inner,
+        Parent              = PInner,
         HorizontalAlignment = Enum.HorizontalAlignment.Center,
         FillDirection       = Enum.FillDirection.Vertical,
-        Padding             = UDim.new(0, 14),
+        Padding             = UDim.new(0,12),
         SortOrder           = Enum.SortOrder.LayoutOrder,
     })
 
-    -- Key icon badge (⌘ symbol)
-    local LockFrame = New("Frame", {
-        Parent           = Inner,
-        BackgroundColor3 = theme.Card,
-        Size             = UDim2.new(0, 64, 0, 64),
+    local KeyBadge = New("Frame", {
+        Parent           = PInner,
+        BackgroundColor3 = theme.KeyAccent or theme.Accent,
+        Size             = UDim2.new(0,52,0,52),
         ZIndex           = 203,
         LayoutOrder      = 0,
     })
-    MakeCorner(LockFrame, 20)
-    MakeStroke(LockFrame, theme.KeyAccent or theme.Accent, 1.5, 0.35)
-    SymLabel(LockFrame, Icons.key, theme.KeyAccent or theme.Accent, 26, 204)
+    MakeCorner(KeyBadge, 17)
+    MakeStroke(KeyBadge, theme.AccentDark, 2, 0.4)
+    SymLabel(KeyBadge, Icons.key, Color3.fromRGB(255,255,255), 22, 204)
 
     New("TextLabel", {
-        Parent                 = Inner,
+        Parent                 = PInner,
         BackgroundTransparency = 1,
-        Size                   = UDim2.new(1, 0, 0, 22),
+        Size                   = UDim2.new(1,0,0,22),
         Text                   = title,
         TextColor3             = theme.Text,
         TextSize               = 17,
-        Font                   = Enum.Font.GothamBold,
+        Font                   = Enum.Font.GothamBlack,
         TextXAlignment         = Enum.TextXAlignment.Center,
         ZIndex                 = 203,
         LayoutOrder            = 1,
     })
     New("TextLabel", {
-        Parent                 = Inner,
+        Parent                 = PInner,
         BackgroundTransparency = 1,
-        Size                   = UDim2.new(1, 0, 0, 0),
-        AutomaticSize          = Enum.AutomaticSize.Y,
+        Size                   = UDim2.new(1,0,0,14),
         Text                   = subtitle,
         TextColor3             = theme.SubText,
         TextSize               = 12,
         Font                   = Enum.Font.Gotham,
         TextXAlignment         = Enum.TextXAlignment.Center,
-        TextWrapped            = true,
         ZIndex                 = 203,
         LayoutOrder            = 2,
     })
 
-    -- Expiry label
-    if keyExpiry > 0 then
-        local hrs = math.floor(keyExpiry / 3600)
-        local mins = math.floor((keyExpiry % 3600) / 60)
-        local expiryStr = hrs > 0 and ("Key valid for " .. hrs .. " hour(s)") or ("Key valid for " .. mins .. " min(s)")
-        New("TextLabel", {
-            Parent                 = Inner,
-            BackgroundTransparency = 1,
-            Size                   = UDim2.new(1, 0, 0, 16),
-            Text                   = expiryStr,
-            TextColor3             = theme.KeyAccent or theme.Accent,
-            TextSize               = 11,
-            Font                   = Enum.Font.Gotham,
-            TextXAlignment         = Enum.TextXAlignment.Center,
-            ZIndex                 = 203,
-            LayoutOrder            = 3,
-        })
-    end
-
-    -- Key input
     local InputBg = New("Frame", {
-        Parent           = Inner,
-        BackgroundColor3 = theme.CardAlt or theme.Card,
-        Size             = UDim2.new(1, 0, 0, 46),
+        Parent           = PInner,
+        BackgroundColor3 = theme.CardAlt,
+        Size             = UDim2.new(1,0,0,42),
         ZIndex           = 203,
-        LayoutOrder      = 4,
+        LayoutOrder      = 3,
     })
-    MakeCorner(InputBg, 13)
+    MakeCorner(InputBg, 12)
     local inputStroke = MakeStroke(InputBg, theme.Border, 1, 0)
-
-    -- Key prefix icon inside input
-    SymLabel(InputBg, Icons.key, theme.Muted, 14, 204,
-        Vector2.new(0, 0.5), UDim2.new(0, 22, 0.5, 0), UDim2.new(0, 22, 0, 22))
 
     local KeyInput = New("TextBox", {
         Parent                 = InputBg,
         BackgroundTransparency = 1,
-        Position               = UDim2.new(0, 38, 0, 0),
-        Size                   = UDim2.new(1, -46, 1, 0),
-        PlaceholderText        = "Enter key...",
+        Position               = UDim2.new(0,14,0,0),
+        Size                   = UDim2.new(1,-28,1,0),
+        PlaceholderText        = "Enter your key...",
         PlaceholderColor3      = theme.Muted,
         Text                   = "",
         TextColor3             = theme.Text,
@@ -934,34 +854,33 @@ local function ShowKeySystem(opts, theme, screenGui, onSuccess)
     end)
 
     local StatusLabel = New("TextLabel", {
-        Parent                 = Inner,
+        Parent                 = PInner,
         BackgroundTransparency = 1,
-        Size                   = UDim2.new(1, 0, 0, 16),
+        Size                   = UDim2.new(1,0,0,14),
         Text                   = "",
-        TextColor3             = theme.Accent,
+        TextColor3             = theme.SubText,
         TextSize               = 11,
-        Font                   = Enum.Font.GothamBold,
+        Font                   = Enum.Font.Gotham,
         TextXAlignment         = Enum.TextXAlignment.Center,
         ZIndex                 = 203,
-        LayoutOrder            = 5,
+        LayoutOrder            = 4,
     })
 
-    -- Confirm button
     local ConfirmBtn = New("Frame", {
-        Parent           = Inner,
+        Parent           = PInner,
         BackgroundColor3 = theme.KeyAccent or theme.Accent,
-        Size             = UDim2.new(1, 0, 0, 46),
+        Size             = UDim2.new(1,0,0,42),
         ZIndex           = 203,
-        LayoutOrder      = 6,
+        LayoutOrder      = 5,
     })
-    MakeCorner(ConfirmBtn, 13)
+    MakeCorner(ConfirmBtn, 12)
 
     New("TextLabel", {
         Parent                 = ConfirmBtn,
         BackgroundTransparency = 1,
-        Size                   = UDim2.new(1, 0, 1, 0),
-        Text                   = "Unlock Access",
-        TextColor3             = Color3.fromRGB(255, 255, 255),
+        Size                   = UDim2.new(1,0,1,0),
+        Text                   = "Confirm Key",
+        TextColor3             = Color3.fromRGB(255,255,255),
         TextSize               = 14,
         Font                   = Enum.Font.GothamBold,
         TextXAlignment         = Enum.TextXAlignment.Center,
@@ -971,91 +890,50 @@ local function ShowKeySystem(opts, theme, screenGui, onSuccess)
     local ConfirmClickBtn = New("TextButton", {
         Parent                 = ConfirmBtn,
         BackgroundTransparency = 1,
-        Size                   = UDim2.new(1, 0, 1, 0),
+        Size                   = UDim2.new(1,0,1,0),
         Text                   = "",
         ZIndex                 = 205,
     })
-    ConfirmClickBtn.MouseButton1Down:Connect(function()
-        Tween(ConfirmBtn, { BackgroundColor3 = theme.AccentDark, Size = UDim2.new(1, 0, 0, 42) }, 0.1)
-    end)
-    ConfirmClickBtn.MouseButton1Up:Connect(function()
-        Tween(ConfirmBtn, { BackgroundColor3 = theme.KeyAccent or theme.Accent, Size = UDim2.new(1, 0, 0, 46) }, 0.15, Enum.EasingStyle.Back)
-    end)
 
-    -- Get Key link
     if grabURL ~= "" then
-        local GrabFrame = New("Frame", {
-            Parent           = Inner,
-            BackgroundColor3 = theme.Card,
-            Size             = UDim2.new(1, 0, 0, 40),
-            ZIndex           = 203,
-            LayoutOrder      = 7,
-        })
-        MakeCorner(GrabFrame, 12)
-        MakeStroke(GrabFrame, theme.Border, 1, 0)
-
-        -- Row layout inside GrabFrame
-        local GrabRow = New("Frame", {
-            Parent                 = GrabFrame,
+        local GrabBtn = New("TextButton", {
+            Parent                 = PInner,
             BackgroundTransparency = 1,
-            Size                   = UDim2.new(1, 0, 1, 0),
-            ZIndex                 = 204,
-        })
-        MakePadding(GrabRow, 0, 0, 14, 10)
-
-        New("TextLabel", {
-            Parent                 = GrabRow,
-            BackgroundTransparency = 1,
-            AnchorPoint            = Vector2.new(0, 0.5),
-            Position               = UDim2.new(0, 0, 0.5, 0),
-            Size                   = UDim2.new(1, -20, 0, 16),
-            Text                   = "Get Key",
+            Size                   = UDim2.new(1,0,0,20),
+            Text                   = "Get Key →",
             TextColor3             = theme.KeyAccent or theme.Accent,
             TextSize               = 12,
             Font                   = Enum.Font.GothamBold,
-            TextXAlignment         = Enum.TextXAlignment.Left,
-            ZIndex                 = 205,
-        })
-        -- Arrow icon
-        SymLabel(GrabRow, Icons.arrow_right, theme.Muted, 14, 205,
-            Vector2.new(1, 0.5), UDim2.new(1, 0, 0.5, 0), UDim2.new(0, 16, 0, 16))
-
-        local GrabBtn = New("TextButton", {
-            Parent                 = GrabFrame,
-            BackgroundTransparency = 1,
-            Size                   = UDim2.new(1, 0, 1, 0),
-            Text                   = "",
-            ZIndex                 = 206,
+            TextXAlignment         = Enum.TextXAlignment.Center,
+            ZIndex                 = 203,
+            LayoutOrder            = 6,
         })
         GrabBtn.MouseButton1Click:Connect(function()
-            pcall(function() setclipboard(grabURL) end)
-            StatusLabel.TextColor3 = Color3.fromRGB(28, 200, 115)
-            StatusLabel.Text = Icons.check .. "  Link copied!"
-            task.delay(2, function() StatusLabel.Text = "" end)
+            setclipboard(grabURL)
+            GrabBtn.Text = "Link Copied! ✓"
+            task.delay(2, function() GrabBtn.Text = "Get Key →" end)
         end)
-        GrabBtn.MouseEnter:Connect(function() Tween(GrabFrame, { BackgroundColor3 = theme.CardAlt }, 0.15) end)
-        GrabBtn.MouseLeave:Connect(function() Tween(GrabFrame, { BackgroundColor3 = theme.Card }, 0.15) end)
     end
 
     local function ValidateKey()
-        local entered = KeyInput.Text
-        for _, k in ipairs(validKeys) do
-            if entered == k then
+        local input = KeyInput.Text:gsub("%s","")
+        for _,k in ipairs(validKeys) do
+            if input==k then
                 if saveKey_f then
                     pcall(function()
                         if makefolder and not isfolder("NovaField") then makefolder("NovaField") end
                         if writefile then
-                            writefile(savedKeyPath, entered)
+                            writefile(savedKeyPath, input)
                             writefile(savedTimePath, tostring(os.time()))
                         end
                     end)
                 end
-                StatusLabel.TextColor3 = Color3.fromRGB(28, 200, 115)
-                StatusLabel.Text = Icons.check .. "  Access granted!"
-                Tween(ConfirmBtn, { BackgroundColor3 = Color3.fromRGB(28, 200, 115) }, 0.3)
-                KeyInput.TextEditable = false
+                StatusLabel.TextColor3 = Color3.fromRGB(28,200,115)
+                StatusLabel.Text       = Icons.check.."  Access granted!"
+                Tween(ConfirmBtn, { BackgroundColor3 = Color3.fromRGB(28,200,115) }, 0.3)
+                KeyInput.TextEditable  = false
                 task.delay(0.9, function()
-                    Tween(Overlay, { BackgroundTransparency = 1 }, 0.35)
+                    Tween(Overlay, { BackgroundTransparency=1 }, 0.35)
                     task.delay(0.38, function()
                         if Overlay and Overlay.Parent then Overlay:Destroy() end
                         onSuccess()
@@ -1064,26 +942,21 @@ local function ShowKeySystem(opts, theme, screenGui, onSuccess)
                 return
             end
         end
-        StatusLabel.TextColor3 = Color3.fromRGB(255, 65, 65)
-        StatusLabel.Text = Icons.close .. "  Invalid key. Try again."
-        Tween(InputBg, { BackgroundColor3 = Color3.fromRGB(75, 8, 8) }, 0.1)
-        task.delay(0.32, function()
-            Tween(InputBg, { BackgroundColor3 = theme.CardAlt }, 0.28)
-        end)
+        StatusLabel.TextColor3 = Color3.fromRGB(255,65,65)
+        StatusLabel.Text       = Icons.close.."  Invalid key."
+        Tween(InputBg, { BackgroundColor3 = Color3.fromRGB(75,8,8) }, 0.1)
+        task.delay(0.32, function() Tween(InputBg, { BackgroundColor3 = theme.CardAlt }, 0.28) end)
     end
 
     ConfirmClickBtn.MouseButton1Click:Connect(ValidateKey)
-    KeyInput.FocusLost:Connect(function(enter)
-        if enter then ValidateKey() end
-    end)
+    KeyInput.FocusLost:Connect(function(enter) if enter then ValidateKey() end end)
 
-    -- Animate in
-    Panel.Position = UDim2.new(0.5, 0, 0.65, 0)
-    Tween(Panel, { Position = UDim2.new(0.5, 0, 0.5, 0) }, 0.46, Enum.EasingStyle.Back)
+    Panel.Position = UDim2.new(0.5,0,0.65,0)
+    Tween(Panel, { Position = UDim2.new(0.5,0,0.5,0) }, 0.46, Enum.EasingStyle.Back)
 end
 
 -- ════════════════════════════════════════════════════════════════
--- DRAGGING SYSTEM — shadow-sync, mobile-safe, inertia
+-- DRAGGING SYSTEM — shadow-sync, mobile+PC, inertia
 -- ════════════════════════════════════════════════════════════════
 local function MakeDraggable(frame, handle, onMoved)
     handle = handle or frame
@@ -1091,20 +964,20 @@ local function MakeDraggable(frame, handle, onMoved)
     local dragInput = nil
     local dragStart = nil
     local startPos  = nil
-    local velocity  = Vector2.new(0, 0)
-    local lastPos   = Vector2.new(0, 0)
+    local velocity  = Vector2.new(0,0)
+    local lastPos   = Vector2.new(0,0)
     local lastTime  = 0
 
     local function ClampPos(px, py)
         local vp = ScreenSize()
         local fw = frame.AbsoluteSize.X
         local fh = frame.AbsoluteSize.Y
-        return math.clamp(px, 0, vp.X - fw), math.clamp(py, 0, vp.Y - fh)
+        return math.clamp(px, 0, vp.X-fw), math.clamp(py, 0, vp.Y-fh)
     end
 
     local function SetPos(cx, cy)
-        frame.Position = UDim2.new(0, cx, 0, cy)
-        if onMoved then onMoved(cx, cy) end
+        frame.Position = UDim2.new(0,cx,0,cy)
+        if onMoved then onMoved(cx,cy) end
     end
 
     handle.InputBegan:Connect(function(input)
@@ -1113,7 +986,7 @@ local function MakeDraggable(frame, handle, onMoved)
             dragging  = true
             dragStart = input.Position
             startPos  = frame.Position
-            velocity  = Vector2.new(0, 0)
+            velocity  = Vector2.new(0,0)
             lastPos   = Vector2.new(input.Position.X, input.Position.Y)
             lastTime  = tick()
             input.Changed:Connect(function()
@@ -1134,16 +1007,16 @@ local function MakeDraggable(frame, handle, onMoved)
     UserInputService.InputChanged:Connect(function(input)
         if input == dragInput and dragging then
             local now    = tick()
-            local dt     = math.max(now - lastTime, 0.001)
+            local dt     = math.max(now-lastTime, 0.001)
             local curPos = Vector2.new(input.Position.X, input.Position.Y)
-            velocity = (curPos - lastPos) / dt
+            velocity = (curPos-lastPos)/dt
             lastPos  = curPos
             lastTime = now
             local delta = input.Position - dragStart
             local newX  = startPos.X.Offset + delta.X
             local newY  = startPos.Y.Offset + delta.Y
-            local cx, cy = ClampPos(newX, newY)
-            SetPos(cx, cy)
+            local cx,cy = ClampPos(newX,newY)
+            SetPos(cx,cy)
         end
     end)
 
@@ -1151,17 +1024,17 @@ local function MakeDraggable(frame, handle, onMoved)
         if (input.UserInputType == Enum.UserInputType.MouseButton1
         or input.UserInputType == Enum.UserInputType.Touch) and dragging then
             dragging = false
-            local vx, vy = velocity.X * 0.1, velocity.Y * 0.1
-            local steps  = 14
+            local vx,vy = velocity.X*0.1, velocity.Y*0.1
+            local steps = 14
             task.spawn(function()
-                for i = 1, steps do
+                for i=1,steps do
                     task.wait(1/60)
-                    local decay = 1 - (i / steps)
-                    local cx, cy = ClampPos(
-                        frame.Position.X.Offset + vx * decay,
-                        frame.Position.Y.Offset + vy * decay
+                    local decay = 1-(i/steps)
+                    local cx,cy = ClampPos(
+                        frame.Position.X.Offset + vx*decay,
+                        frame.Position.Y.Offset + vy*decay
                     )
-                    SetPos(cx, cy)
+                    SetPos(cx,cy)
                 end
             end)
         end
@@ -1173,7 +1046,8 @@ end
 -- ════════════════════════════════════════════════════════════════
 local NovaField = {}
 NovaField.__index = NovaField
-NovaField.Version = "1.2.0"
+NovaField.Version = "1.3.0"
+NovaField.IconSystem = IconSystem   -- expose so users can set AtlasID
 
 function NovaField:CreateWindow(options)
     local Title      = options.Title            or "NovaField"
@@ -1192,7 +1066,7 @@ function NovaField:CreateWindow(options)
     T = Themes[savedTheme] or T
 
     -- Clean existing UI
-    for _, name in ipairs({"NovaFieldUI"}) do
+    for _,name in ipairs({"NovaFieldUI"}) do
         pcall(function()
             if CoreGui:FindFirstChild(name) then CoreGui:FindFirstChild(name):Destroy() end
         end)
@@ -1211,25 +1085,25 @@ function NovaField:CreateWindow(options)
 
     local mobile   = IsMobile()
     local vp       = ScreenSize()
-    local WINDOW_W = mobile and math.min(vp.X - 20, 420) or 470
-    local WINDOW_H = mobile and math.min(vp.Y - 80, 640) or 575
-    local startX   = math.floor((vp.X - WINDOW_W) / 2)
+    local WINDOW_W = mobile and math.min(vp.X-20, 420) or 470
+    local WINDOW_H = mobile and math.min(vp.Y-80, 640) or 575
+    local startX   = math.floor((vp.X-WINDOW_W)/2)
     local startY   = mobile and 30 or 65
 
-    -- ── Drop shadow
+    -- ── Drop shadow (now shadow position always matches window)
     local SHADOW_PAD = 28
     local Shadow = New("ImageLabel", {
         Parent                 = ScreenGui,
         BackgroundTransparency = 1,
-        Position               = UDim2.new(0, startX - SHADOW_PAD, 0, startY - SHADOW_PAD),
-        Size                   = UDim2.new(0, WINDOW_W + SHADOW_PAD*2, 0, WINDOW_H + SHADOW_PAD*2),
+        Position               = UDim2.new(0, startX-SHADOW_PAD, 0, startY-SHADOW_PAD),
+        Size                   = UDim2.new(0, WINDOW_W+SHADOW_PAD*2, 0, WINDOW_H+SHADOW_PAD*2),
         Image                  = "rbxassetid://6015897843",
-        ImageColor3            = Color3.fromRGB(0, 0, 0),
+        ImageColor3            = Color3.fromRGB(0,0,0),
         ImageTransparency      = 0.42,
         ScaleType              = Enum.ScaleType.Slice,
-        SliceCenter            = Rect.new(49, 49, 450, 450),
+        SliceCenter            = Rect.new(49,49,450,450),
         ZIndex                 = 1,
-        Visible                = not DoKey and not DoStartup,
+        Visible                = false,
     })
 
     -- ── Main window
@@ -1254,34 +1128,35 @@ function NovaField:CreateWindow(options)
         Parent           = Window,
         Name             = "TopBar",
         BackgroundColor3 = T.TopBar,
-        Size             = UDim2.new(1, 0, 0, TOPBAR_H),
+        Size             = UDim2.new(1,0,0,TOPBAR_H),
         ZIndex           = 3,
     })
     Tag(TopBar, "TopBar")
-    New("UICorner", { Parent = TopBar, CornerRadius = UDim.new(0, 18) })
-    -- fill bottom half to make corners only on top
+    New("UICorner", { Parent=TopBar, CornerRadius=UDim.new(0,18) })
+    -- fill bottom corners
     New("Frame", {
         Parent           = TopBar,
         BackgroundColor3 = T.TopBar,
-        Position         = UDim2.new(0, 0, 0.5, 0),
-        Size             = UDim2.new(1, 0, 0.5, 0),
+        Position         = UDim2.new(0,0,0.5,0),
+        Size             = UDim2.new(1,0,0.5,0),
         ZIndex           = 3,
     })
     -- Separator
     New("Frame", {
         Parent           = Window,
         BackgroundColor3 = T.Border,
-        Position         = UDim2.new(0, 0, 0, TOPBAR_H),
-        Size             = UDim2.new(1, 0, 0, 1),
+        Position         = UDim2.new(0,0,0,TOPBAR_H),
+        Size             = UDim2.new(1,0,0,1),
         ZIndex           = 4,
     })
 
-    -- Icon badge (⋄ bolt)
+    -- Icon badge
     local ICON_SZ  = 40
     local IconBadge = New("Frame", {
         Parent           = TopBar,
         BackgroundColor3 = T.Accent,
-        Position         = UDim2.new(0, 14, 0.5, -(ICON_SZ/2)),
+        AnchorPoint      = Vector2.new(0, 0.5),
+        Position         = UDim2.new(0, 14, 0.5, 0),
         Size             = UDim2.new(0, ICON_SZ, 0, ICON_SZ),
         ZIndex           = 4,
     })
@@ -1290,11 +1165,12 @@ function NovaField:CreateWindow(options)
     MakeStroke(IconBadge, T.AccentDark, 2, 0.4)
     SymLabel(IconBadge, Icons.zap, Color3.fromRGB(255,255,255), 18, 5)
 
-    -- Title & subtitle
+    -- Title & subtitle — perfectly centered vertically in topbar
     New("TextLabel", {
         Parent                 = TopBar,
         BackgroundTransparency = 1,
-        Position               = UDim2.new(0, 14 + ICON_SZ + 10, 0, 8),
+        AnchorPoint            = Vector2.new(0, 0.5),
+        Position               = UDim2.new(0, 14+ICON_SZ+10, 0.5, -12),
         Size                   = UDim2.new(0, 220, 0, 20),
         Text                   = Title,
         TextColor3             = T.Text,
@@ -1306,7 +1182,8 @@ function NovaField:CreateWindow(options)
     local SubLbl = New("TextLabel", {
         Parent                 = TopBar,
         BackgroundTransparency = 1,
-        Position               = UDim2.new(0, 14 + ICON_SZ + 10, 0, 30),
+        AnchorPoint            = Vector2.new(0, 0.5),
+        Position               = UDim2.new(0, 14+ICON_SZ+10, 0.5, 9),
         Size                   = UDim2.new(0, 220, 0, 16),
         Text                   = SubTitle,
         TextColor3             = T.SubText,
@@ -1317,28 +1194,28 @@ function NovaField:CreateWindow(options)
     })
     Tag(SubLbl, "SubText")
 
-    -- Control buttons — ▦ search, − minimize, ✕ close
+    -- Control buttons
     local BTN_SZ  = 28
     local BTN_GAP = 7
     local _topBtnFrames = {}
 
     local function MakeTopBtn(color, index, symbol)
-        local xOff = -(index * (BTN_SZ + BTN_GAP)) - 10
+        local xOff = -(index*(BTN_SZ+BTN_GAP))-10
         local Btn = New("Frame", {
             Parent           = TopBar,
             BackgroundColor3 = T.CardAlt,
-            Position         = UDim2.new(1, xOff, 0.5, -(BTN_SZ/2)),
+            AnchorPoint      = Vector2.new(0, 0.5),
+            Position         = UDim2.new(1, xOff, 0.5, 0),
             Size             = UDim2.new(0, BTN_SZ, 0, BTN_SZ),
             ZIndex           = 4,
         })
         Tag(Btn, "CardAlt")
         MakeCorner(Btn, 8)
         SymLabel(Btn, symbol, color, 13, 5)
-
         local ClickBtn = New("TextButton", {
             Parent                 = Btn,
             BackgroundTransparency = 1,
-            Size                   = UDim2.new(1, 0, 1, 0),
+            Size                   = UDim2.new(1,0,1,0),
             Text                   = "",
             ZIndex                 = 6,
         })
@@ -1349,22 +1226,22 @@ function NovaField:CreateWindow(options)
             Tween(Btn, { BackgroundColor3 = T.CardAlt }, 0.15)
         end)
         ClickBtn.MouseButton1Down:Connect(function()
-            Tween(Btn, { Size = UDim2.new(0, BTN_SZ - 4, 0, BTN_SZ - 4) }, 0.08)
+            Tween(Btn, { Size = UDim2.new(0,BTN_SZ-4,0,BTN_SZ-4) }, 0.08)
         end)
         ClickBtn.MouseButton1Up:Connect(function()
-            Tween(Btn, { Size = UDim2.new(0, BTN_SZ, 0, BTN_SZ) }, 0.12, Enum.EasingStyle.Back)
+            Tween(Btn, { Size = UDim2.new(0,BTN_SZ,0,BTN_SZ) }, 0.12, Enum.EasingStyle.Back)
         end)
         table.insert(_topBtnFrames, Btn)
         return ClickBtn, Btn
     end
 
-    local BtnCloseClick,    _ = MakeTopBtn(Color3.fromRGB(215, 55, 55),   1, Icons.x_close)
-    local BtnMinimizeClick, _ = MakeTopBtn(Color3.fromRGB(200, 155, 0),   2, Icons.minimize)
-    local BtnSearchClick,   _ = MakeTopBtn(Color3.fromRGB(155, 155, 175), 3, Icons.hashtag)
+    local BtnCloseClick,    _ = MakeTopBtn(Color3.fromRGB(215,55,55),   1, Icons.x_close)
+    local BtnMinimizeClick, _ = MakeTopBtn(Color3.fromRGB(200,155,0),   2, Icons.minimize)
+    local BtnSearchClick,   _ = MakeTopBtn(Color3.fromRGB(155,155,175), 3, Icons.hashtag)
 
-    -- Drag
-    MakeDraggable(Window, TopBar, function(cx, cy)
-        Shadow.Position = UDim2.new(0, cx - SHADOW_PAD, 0, cy - SHADOW_PAD)
+    -- Drag (window drags from TopBar; shadow stays in sync)
+    MakeDraggable(Window, TopBar, function(cx,cy)
+        Shadow.Position = UDim2.new(0, cx-SHADOW_PAD, 0, cy-SHADOW_PAD)
     end)
 
     -- ── SEARCH BAR
@@ -1372,23 +1249,21 @@ function NovaField:CreateWindow(options)
     local SearchBar = New("Frame", {
         Parent           = Window,
         BackgroundColor3 = T.CardAlt,
-        Position         = UDim2.new(0, 0, 0, TOPBAR_H + 1),
-        Size             = UDim2.new(1, 0, 0, 0),
+        Position         = UDim2.new(0,0,0,TOPBAR_H+1),
+        Size             = UDim2.new(1,0,0,0),
         ClipsDescendants = true,
         ZIndex           = 3,
     })
     Tag(SearchBar, "CardAlt")
     MakePadding(SearchBar, 0, 0, 12, 12)
-
-    -- Search icon
     SymLabel(SearchBar, Icons.search, T.Muted, 14, 4,
-        Vector2.new(0, 0.5), UDim2.new(0, 20, 0.5, 0), UDim2.new(0, 20, 0, 20))
+        Vector2.new(0,0.5), UDim2.new(0,20,0.5,0), UDim2.new(0,20,0,20))
 
     local SearchInput = New("TextBox", {
         Parent                 = SearchBar,
         BackgroundTransparency = 1,
-        Position               = UDim2.new(0, 42, 0, 0),
-        Size                   = UDim2.new(1, -54, 1, 0),
+        Position               = UDim2.new(0,42,0,0),
+        Size                   = UDim2.new(1,-54,1,0),
         PlaceholderText        = "Search settings...",
         PlaceholderColor3      = T.Muted,
         Text                   = "",
@@ -1403,7 +1278,7 @@ function NovaField:CreateWindow(options)
     local searchVisible = false
     local function ToggleSearch()
         searchVisible = not searchVisible
-        Tween(SearchBar, { Size = UDim2.new(1, 0, 0, searchVisible and SEARCH_H or 0) }, 0.25)
+        Tween(SearchBar, { Size = UDim2.new(1,0,0, searchVisible and SEARCH_H or 0) }, 0.25)
         if not searchVisible then SearchInput.Text = "" end
     end
     BtnSearchClick.MouseButton1Click:Connect(ToggleSearch)
@@ -1413,27 +1288,27 @@ function NovaField:CreateWindow(options)
     local TabBarBg = New("Frame", {
         Parent           = Window,
         BackgroundColor3 = T.TopBar,
-        Position         = UDim2.new(0, 0, 0, TOPBAR_H + 1),
-        Size             = UDim2.new(1, 0, 0, TABBAR_H),
+        Position         = UDim2.new(0,0,0,TOPBAR_H+1),
+        Size             = UDim2.new(1,0,0,TABBAR_H),
         ZIndex           = 3,
     })
     Tag(TabBarBg, "TopBar")
 
-    -- Bottom border of tab bar
     New("Frame", {
         Parent           = TabBarBg,
         BackgroundColor3 = T.Border,
-        Position         = UDim2.new(0, 0, 1, -1),
-        Size             = UDim2.new(1, 0, 0, 1),
+        Position         = UDim2.new(0,0,1,-1),
+        Size             = UDim2.new(1,0,0,1),
         ZIndex           = 4,
     })
 
     local TabContainer = New("Frame", {
         Parent                 = TabBarBg,
         BackgroundTransparency = 1,
-        Size                   = UDim2.new(1, 0, 1, 0),
+        Size                   = UDim2.new(1,0,1,0),
         ZIndex                 = 4,
     })
+    -- Equal-width tabs via UIListLayout horizontal
     New("UIListLayout", {
         Parent              = TabContainer,
         FillDirection       = Enum.FillDirection.Horizontal,
@@ -1447,23 +1322,21 @@ function NovaField:CreateWindow(options)
     local ContentArea = New("Frame", {
         Parent                 = Window,
         BackgroundTransparency = 1,
-        Position               = UDim2.new(0, 0, 0, HEADER_H),
-        Size                   = UDim2.new(1, 0, 0, WINDOW_H - HEADER_H),
+        Position               = UDim2.new(0,0,0,HEADER_H),
+        Size                   = UDim2.new(1,0,0,WINDOW_H-HEADER_H),
         ClipsDescendants       = true,
         ZIndex                 = 2,
     })
 
-    -- Reactive layout for search bar
     local _layoutConn
     _layoutConn = RunService.Heartbeat:Connect(function()
         if not (Window and Window.Parent) then
-            _layoutConn:Disconnect()
-            return
+            _layoutConn:Disconnect(); return
         end
         local so = searchVisible and SEARCH_H or 0
-        local tTabPos  = UDim2.new(0, 0, 0, TOPBAR_H + 1 + so)
-        local tContPos = UDim2.new(0, 0, 0, HEADER_H + so)
-        local tContSz  = UDim2.new(1, 0, 0, WINDOW_H - HEADER_H - so)
+        local tTabPos  = UDim2.new(0,0,0,TOPBAR_H+1+so)
+        local tContPos = UDim2.new(0,0,0,HEADER_H+so)
+        local tContSz  = UDim2.new(1,0,0,WINDOW_H-HEADER_H-so)
         if TabBarBg.Position ~= tTabPos then
             Tween(TabBarBg,    { Position = tTabPos  }, 0.22)
             Tween(ContentArea, { Position = tContPos, Size = tContSz }, 0.22)
@@ -1475,25 +1348,25 @@ function NovaField:CreateWindow(options)
     BtnMinimizeClick.MouseButton1Click:Connect(function()
         minimized = not minimized
         if minimized then
-            Tween(Window, { Size = UDim2.new(0, WINDOW_W, 0, TOPBAR_H) }, 0.3, Enum.EasingStyle.Quart)
-            Tween(Shadow, { Size = UDim2.new(0, WINDOW_W + SHADOW_PAD*2, 0, TOPBAR_H + SHADOW_PAD*2) }, 0.3)
+            Tween(Window, { Size = UDim2.new(0,WINDOW_W,0,TOPBAR_H) }, 0.3, Enum.EasingStyle.Quart)
+            Tween(Shadow, { Size = UDim2.new(0,WINDOW_W+SHADOW_PAD*2,0,TOPBAR_H+SHADOW_PAD*2) }, 0.3)
         else
-            Tween(Window, { Size = UDim2.new(0, WINDOW_W, 0, WINDOW_H) }, 0.3, Enum.EasingStyle.Quart)
-            Tween(Shadow, { Size = UDim2.new(0, WINDOW_W + SHADOW_PAD*2, 0, WINDOW_H + SHADOW_PAD*2) }, 0.3)
+            Tween(Window, { Size = UDim2.new(0,WINDOW_W,0,WINDOW_H) }, 0.3, Enum.EasingStyle.Quart)
+            Tween(Shadow, { Size = UDim2.new(0,WINDOW_W+SHADOW_PAD*2,0,WINDOW_H+SHADOW_PAD*2) }, 0.3)
         end
     end)
 
-    -- ── FLOATING BUTTON (when closed)
+    -- ── FLOATING BUTTON (when closed) — fully draggable on mobile & PC
     local FB_SZ = mobile and 46 or 54
-    local fbX   = vp.X - (mobile and 70 or 80)   -- right side on mobile
+    local fbX   = vp.X - (mobile and 70 or 80)
     local fbY   = vp.Y - (mobile and 110 or 90)
 
     local FloatBtn = New("Frame", {
         Parent           = ScreenGui,
         Name             = "NovaFloatBtn",
         BackgroundColor3 = T.Accent,
-        Position         = UDim2.new(0, fbX, 0, fbY),
-        Size             = UDim2.new(0, FB_SZ, 0, FB_SZ),
+        Position         = UDim2.new(0,fbX,0,fbY),
+        Size             = UDim2.new(0,FB_SZ,0,FB_SZ),
         ZIndex           = 10,
         Visible          = false,
     })
@@ -1505,16 +1378,31 @@ function NovaField:CreateWindow(options)
     local FloatClickBtn = New("TextButton", {
         Parent                 = FloatBtn,
         BackgroundTransparency = 1,
-        Size                   = UDim2.new(1, 0, 1, 0),
+        Size                   = UDim2.new(1,0,1,0),
         Text                   = "",
         ZIndex                 = 12,
     })
 
+    -- Make float button draggable (PC + Mobile)
     MakeDraggable(FloatBtn, FloatBtn)
 
-    local windowHidden  = false
-    local _fbDragMoved  = false
-    local fbDragStart   = nil
+    -- Pulse animation
+    task.spawn(function()
+        while FloatBtn and FloatBtn.Parent do
+            task.wait(0.7)
+            if FloatBtn.Visible then
+                Tween(FloatBtn, { Size = UDim2.new(0,FB_SZ+5,0,FB_SZ+5) }, 0.62, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut)
+                task.wait(0.62)
+                if FloatBtn.Visible then
+                    Tween(FloatBtn, { Size = UDim2.new(0,FB_SZ,0,FB_SZ) }, 0.62, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut)
+                end
+            end
+        end
+    end)
+
+    -- Track if float btn was dragged (suppress tap)
+    local _fbDragMoved = false
+    local fbDragStart  = nil
 
     FloatBtn.InputBegan:Connect(function(input)
         if input.UserInputType == Enum.UserInputType.MouseButton1
@@ -1527,35 +1415,22 @@ function NovaField:CreateWindow(options)
     UserInputService.InputChanged:Connect(function(input)
         if (input.UserInputType == Enum.UserInputType.MouseMovement
         or input.UserInputType == Enum.UserInputType.Touch) and fbDragStart then
-            local d = (Vector2.new(input.Position.X, input.Position.Y) - Vector2.new(fbDragStart.X, fbDragStart.Y)).Magnitude
+            local d = (Vector2.new(input.Position.X,input.Position.Y) - Vector2.new(fbDragStart.X,fbDragStart.Y)).Magnitude
             if d > 5 then _fbDragMoved = true end
         end
     end)
 
-    -- Pulse animation on float button
-    task.spawn(function()
-        while FloatBtn do
-            task.wait(0.7)
-            if FloatBtn.Visible then
-                Tween(FloatBtn, { Size = UDim2.new(0, FB_SZ + 5, 0, FB_SZ + 5) }, 0.62, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut)
-                task.wait(0.62)
-                if FloatBtn.Visible then
-                    Tween(FloatBtn, { Size = UDim2.new(0, FB_SZ, 0, FB_SZ) }, 0.62, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut)
-                end
-            end
-        end
-    end)
-
     -- ── CLOSE
+    local windowHidden = false
     BtnCloseClick.MouseButton1Click:Connect(function()
         if windowHidden then return end
         windowHidden = true
-        Tween(Window, { Size = UDim2.new(0, WINDOW_W, 0, 0) }, 0.24, Enum.EasingStyle.Quart, Enum.EasingDirection.In)
+        Tween(Window, { Size = UDim2.new(0,WINDOW_W,0,0) }, 0.24, Enum.EasingStyle.Quart, Enum.EasingDirection.In)
         task.delay(0.27, function()
             Window.Visible   = false
             Shadow.Visible   = false
             FloatBtn.Visible = true
-            FloatBtn.Size    = UDim2.new(0, FB_SZ, 0, FB_SZ)
+            FloatBtn.Size    = UDim2.new(0,FB_SZ,0,FB_SZ)
         end)
     end)
 
@@ -1570,9 +1445,18 @@ function NovaField:CreateWindow(options)
         FloatBtn.Visible = false
         Window.Visible   = true
         Shadow.Visible   = true
-        Window.Size      = UDim2.new(0, WINDOW_W, 0, 0)
+
+        -- Sync shadow position to window before showing
+        local wx = Window.Position.X.Offset
+        local wy = Window.Position.Y.Offset
+        Shadow.Position = UDim2.new(0, wx-SHADOW_PAD, 0, wy-SHADOW_PAD)
+
+        Window.Size = UDim2.new(0,WINDOW_W,0,0)
         task.delay(0.02, function()
-            Tween(Window, { Size = UDim2.new(0, WINDOW_W, 0, minimized and TOPBAR_H or WINDOW_H) }, 0.38, Enum.EasingStyle.Back)
+            Tween(Window, { Size = UDim2.new(0,WINDOW_W,0, minimized and TOPBAR_H or WINDOW_H) }, 0.38, Enum.EasingStyle.Back)
+            -- Sync shadow size
+            local finalH = minimized and TOPBAR_H or WINDOW_H
+            Tween(Shadow, { Size = UDim2.new(0,WINDOW_W+SHADOW_PAD*2,0,finalH+SHADOW_PAD*2) }, 0.38, Enum.EasingStyle.Back)
         end)
     end)
 
@@ -1594,10 +1478,10 @@ function NovaField:CreateWindow(options)
 
     SearchInput:GetPropertyChangedSignal("Text"):Connect(function()
         WindowObj._SearchQuery = SearchInput.Text:lower()
-        for _, el in pairs(WindowObj._AllElements) do
+        for _,el in pairs(WindowObj._AllElements) do
             if el._Frame then
                 local q = WindowObj._SearchQuery
-                local visible = q == "" or (el._Title:lower():find(q, 1, true) ~= nil)
+                local visible = q=="" or (el._Title:lower():find(q,1,true) ~= nil)
                 el._Frame.Visible = visible
             end
         end
@@ -1607,19 +1491,19 @@ function NovaField:CreateWindow(options)
         ShowNotification(opts, self._Theme, self._ScreenGui)
     end
 
-    -- SetTheme — all tagged elements including strokes, toggles, text update
+    -- SetTheme
     function WindowObj:SetTheme(name)
         local newT = Themes[name]
         if not newT then return end
         self._Save:Set("__Theme", name)
         local dur = 0.3
-        for _, obj in ipairs(ScreenGui:GetDescendants()) do
-            local ok, role = pcall(function() return obj:GetAttribute("ThemeRole") end)
+        for _,obj in ipairs(ScreenGui:GetDescendants()) do
+            local ok,role = pcall(function() return obj:GetAttribute("ThemeRole") end)
             if ok and role and newT[role] then
                 if obj:IsA("Frame") or obj:IsA("ScrollingFrame") then
                     pcall(function() Tween(obj, { BackgroundColor3 = newT[role] }, dur) end)
                 elseif obj:IsA("TextLabel") or obj:IsA("TextBox") then
-                    local textRoles = { Text=true, SubText=true, Accent=true, Muted=true, TabActive=true, TabInactive=true, SectionBar=true }
+                    local textRoles = {Text=true,SubText=true,Accent=true,Muted=true,TabActive=true,TabInactive=true,SectionBar=true}
                     if textRoles[role] then
                         pcall(function() Tween(obj, { TextColor3 = newT[role] }, dur) end)
                     end
@@ -1633,18 +1517,18 @@ function NovaField:CreateWindow(options)
                 pcall(function() obj.ScrollBarImageColor3 = newT.ScrollBar end)
             end
         end
-        -- Update T table in-place so callbacks using T see new colors
-        for k, v in pairs(newT) do T[k] = v end
-        -- Update tab indicators
-        for _, tabRef in ipairs(self._Tabs) do
+        for k,v in pairs(newT) do T[k] = v end
+        for _,tabRef in ipairs(self._Tabs) do
             if tabRef._Title == self._ActiveTab then
-                Tween(tabRef._Line,   { Size = UDim2.new(0, 22, 0, 2.5), BackgroundColor3 = newT.TabActive }, 0.25)
-                if tabRef._IconLbl then Tween(tabRef._IconLbl, { TextColor3 = newT.TabActive }, 0.2) end
-                if tabRef._IconBg  then Tween(tabRef._IconBg,  { BackgroundTransparency = 0.75 }, 0.2) end
+                Tween(tabRef._Line,   { Size=UDim2.new(0,22,0,2.5), BackgroundColor3=newT.TabActive }, 0.25)
+                if tabRef._IconLbl then Tween(tabRef._IconLbl, { TextColor3=newT.TabActive }, 0.2) end
+                if tabRef._IconImg then Tween(tabRef._IconImg, { ImageColor3=newT.TabActive }, 0.2) end
+                if tabRef._IconBg  then Tween(tabRef._IconBg,  { BackgroundTransparency=0.75 }, 0.2) end
             else
-                Tween(tabRef._Line, { Size = UDim2.new(0, 0, 0, 2.5) }, 0.2)
-                if tabRef._IconLbl then Tween(tabRef._IconLbl, { TextColor3 = newT.TabInactive }, 0.2) end
-                if tabRef._IconBg  then Tween(tabRef._IconBg,  { BackgroundTransparency = 1 }, 0.2) end
+                Tween(tabRef._Line, { Size=UDim2.new(0,0,0,2.5) }, 0.2)
+                if tabRef._IconLbl then Tween(tabRef._IconLbl, { TextColor3=newT.TabInactive }, 0.2) end
+                if tabRef._IconImg then Tween(tabRef._IconImg, { ImageColor3=newT.TabInactive }, 0.2) end
+                if tabRef._IconBg  then Tween(tabRef._IconBg,  { BackgroundTransparency=1 }, 0.2) end
             end
         end
     end
@@ -1660,7 +1544,9 @@ function NovaField:CreateWindow(options)
         local tabIcon  = tabOptions.Icon  or "home"
         local tabOrder = #self._Tabs + 1
 
-        local TAB_W = math.floor(WINDOW_W / 5)
+        -- Equal width: divide bar across max 6 tabs, min 60px
+        local tabCount = math.max(tabOrder, 1)
+        local TAB_W = math.max(math.floor(WINDOW_W / math.max(tabCount+1, 5)), 60)
 
         local TabBtn = New("Frame", {
             Parent                 = self._TabBar,
@@ -1670,7 +1556,7 @@ function NovaField:CreateWindow(options)
             ZIndex                 = 5,
         })
 
-        local TAB_ICON_SZ = 34
+        local TAB_ICON_SZ = 32
         local TabIconBg = New("Frame", {
             Parent                 = TabBtn,
             BackgroundColor3       = T.Accent,
@@ -1680,26 +1566,14 @@ function NovaField:CreateWindow(options)
             Size                   = UDim2.new(0, TAB_ICON_SZ, 0, TAB_ICON_SZ),
             ZIndex                 = 6,
         })
-        MakeCorner(TabIconBg, 11)
+        MakeCorner(TabIconBg, 10)
         Tag(TabIconBg, "Accent")
 
-        -- Use Icons table symbol, fall back to first letter
-        local tabSymbol = Icons[tabIcon] or tabTitle:sub(1, 1):upper()
-
-        local TabIconLbl = New("TextLabel", {
-            Parent                 = TabIconBg,
-            BackgroundTransparency = 1,
-            AnchorPoint            = Vector2.new(0.5, 0.5),
-            Position               = UDim2.new(0.5, 0, 0.5, 0),
-            Size                   = UDim2.new(1, 0, 1, 0),
-            Text                   = tabSymbol,
-            TextColor3             = T.TabInactive,
-            TextSize               = 16,
-            Font                   = Enum.Font.Code,
-            TextXAlignment         = Enum.TextXAlignment.Center,
-            ZIndex                 = 7,
-        })
-        Tag(TabIconLbl, "TabInactive")
+        -- Icon: atlas image if available, else Unicode symbol
+        local tabIconRef = MakeTabIcon(TabIconBg, tabIcon, T.TabInactive, 16, 7)
+        local TabIconLbl = (not tabIconRef:IsA("ImageLabel")) and tabIconRef or nil
+        local TabIconImg = tabIconRef:IsA("ImageLabel") and tabIconRef or nil
+        if TabIconLbl then Tag(TabIconLbl, "TabInactive") end
 
         local TabLine = New("Frame", {
             Parent           = TabBtn,
@@ -1731,23 +1605,24 @@ function NovaField:CreateWindow(options)
             Visible                = false,
             ZIndex                 = 2,
             ElasticBehavior        = Enum.ElasticBehavior.WhenScrollable,
-            ClipsDescendants       = false,
         })
         MakePadding(TabPage, 11, 18, 14, 14)
         MakeList(TabPage, 8)
 
         local function ActivateTab()
-            for _, t in pairs(self._Tabs) do
-                Tween(t._Line,   { Size = UDim2.new(0, 0, 0, 2.5) }, 0.2)
+            for _,t in pairs(self._Tabs) do
+                Tween(t._Line,   { Size = UDim2.new(0,0,0,2.5) }, 0.2)
                 Tween(t._IconBg, { BackgroundTransparency = 1 }, 0.2)
                 if t._IconLbl then Tween(t._IconLbl, { TextColor3 = T.TabInactive }, 0.2) end
+                if t._IconImg then Tween(t._IconImg, { ImageColor3 = T.TabInactive }, 0.2) end
                 t._Page.Visible = false
             end
-            Tween(TabLine,   { Size = UDim2.new(0, 22, 0, 2.5), BackgroundColor3 = T.TabActive }, 0.28, Enum.EasingStyle.Back)
+            Tween(TabLine,   { Size = UDim2.new(0,22,0,2.5), BackgroundColor3 = T.TabActive }, 0.28, Enum.EasingStyle.Back)
             Tween(TabIconBg, { BackgroundTransparency = 0.82 }, 0.2)
-            Tween(TabIconLbl,{ TextColor3 = T.TabActive }, 0.2)
-            TabPage.Visible  = true
-            self._ActiveTab  = tabTitle
+            if TabIconLbl then Tween(TabIconLbl, { TextColor3 = T.TabActive }, 0.2) end
+            if TabIconImg then Tween(TabIconImg, { ImageColor3 = T.TabActive }, 0.2) end
+            TabPage.Visible = true
+            self._ActiveTab = tabTitle
         end
 
         TabClickBtn.MouseButton1Click:Connect(ActivateTab)
@@ -1767,13 +1642,13 @@ function NovaField:CreateWindow(options)
             _Line    = TabLine,
             _IconBg  = TabIconBg,
             _IconLbl = TabIconLbl,
+            _IconImg = TabIconImg,
             _Page    = TabPage,
             _Btn     = TabClickBtn,
         }
         table.insert(self._Tabs, tabRef)
         if #self._Tabs == 1 then ActivateTab() end
 
-        -- ── TAB OBJECT
         local TabObj   = {}
         TabObj._Page   = TabPage
         TabObj._Window = self
@@ -1789,26 +1664,28 @@ function NovaField:CreateWindow(options)
             local SectionFrame = New("Frame", {
                 Parent                 = self._Page,
                 BackgroundTransparency = 1,
-                Size                   = UDim2.new(1, 0, 0, 0),
+                Size                   = UDim2.new(1,0,0,0),
                 AutomaticSize          = Enum.AutomaticSize.Y,
                 ZIndex                 = 3,
             })
             MakeList(SectionFrame, 0)
 
+            -- Section header: left accent bar + title, vertically centered
             local SecHeader = New("Frame", {
                 Parent                 = SectionFrame,
                 BackgroundTransparency = 1,
-                Size                   = UDim2.new(1, 0, 0, 32),
+                Size                   = UDim2.new(1,0,0,32),
                 ZIndex                 = 4,
                 LayoutOrder            = 0,
             })
 
-            -- Left accent bar
+            -- Left accent bar — vertically centered in header
             local SecBar = New("Frame", {
                 Parent           = SecHeader,
                 BackgroundColor3 = T.SectionBar,
-                Position         = UDim2.new(0, 0, 0.5, -11),
-                Size             = UDim2.new(0, 3, 0, 22),
+                AnchorPoint      = Vector2.new(0,0.5),
+                Position         = UDim2.new(0,0,0.5,0),
+                Size             = UDim2.new(0,3,0,22),
                 ZIndex           = 5,
             })
             Tag(SecBar, "SectionBar")
@@ -1817,18 +1694,19 @@ function NovaField:CreateWindow(options)
             local SecTitleLbl = New("TextLabel", {
                 Parent                 = SecHeader,
                 BackgroundTransparency = 1,
-                Position               = UDim2.new(0, 12, 0, 0),
-                Size                   = UDim2.new(1, -38, 1, 0),
+                AnchorPoint            = Vector2.new(0,0.5),
+                Position               = UDim2.new(0,12,0.5,0),
+                Size                   = UDim2.new(1,-38,0,16),
                 Text                   = secTitle,
                 TextColor3             = T.SubText,
                 TextSize               = 11,
                 Font                   = Enum.Font.GothamBold,
                 TextXAlignment         = Enum.TextXAlignment.Left,
+                TextYAlignment         = Enum.TextYAlignment.Center,
                 ZIndex                 = 5,
             })
             Tag(SecTitleLbl, "SubText")
 
-            -- Chevron ▾/▴ for collapsible
             local ChevronLbl
             local isOpen = defaultOpen
 
@@ -1836,14 +1714,15 @@ function NovaField:CreateWindow(options)
                 ChevronLbl = New("TextLabel", {
                     Parent                 = SecHeader,
                     BackgroundTransparency = 1,
-                    AnchorPoint            = Vector2.new(1, 0.5),
-                    Position               = UDim2.new(1, -4, 0.5, 0),
-                    Size                   = UDim2.new(0, 18, 0, 18),
+                    AnchorPoint            = Vector2.new(1,0.5),
+                    Position               = UDim2.new(1,-4,0.5,0),
+                    Size                   = UDim2.new(0,18,0,18),
                     Text                   = isOpen and Icons.chevron_up or Icons.chevron_down,
                     TextColor3             = T.Muted,
                     TextSize               = 14,
                     Font                   = Enum.Font.Code,
                     TextXAlignment         = Enum.TextXAlignment.Center,
+                    TextYAlignment         = Enum.TextYAlignment.Center,
                     ZIndex                 = 5,
                 })
             end
@@ -1851,7 +1730,7 @@ function NovaField:CreateWindow(options)
             local ClipFrame = New("Frame", {
                 Parent                 = SectionFrame,
                 BackgroundTransparency = 1,
-                Size                   = UDim2.new(1, 0, 0, 0),
+                Size                   = UDim2.new(1,0,0,0),
                 AutomaticSize          = isOpen and Enum.AutomaticSize.Y or Enum.AutomaticSize.None,
                 ClipsDescendants       = false,
                 ZIndex                 = 3,
@@ -1861,7 +1740,7 @@ function NovaField:CreateWindow(options)
             local SecContent = New("Frame", {
                 Parent                 = ClipFrame,
                 BackgroundTransparency = 1,
-                Size                   = UDim2.new(1, 0, 0, 0),
+                Size                   = UDim2.new(1,0,0,0),
                 AutomaticSize          = Enum.AutomaticSize.Y,
                 ClipsDescendants       = false,
                 ZIndex                 = 3,
@@ -1870,13 +1749,13 @@ function NovaField:CreateWindow(options)
 
             if not isOpen then
                 ClipFrame.AutomaticSize = Enum.AutomaticSize.None
-                ClipFrame.Size = UDim2.new(1, 0, 0, 0)
+                ClipFrame.Size = UDim2.new(1,0,0,0)
             end
 
             local SecHeaderBtn = New("TextButton", {
                 Parent                 = SecHeader,
                 BackgroundTransparency = 1,
-                Size                   = UDim2.new(1, 0, 1, 0),
+                Size                   = UDim2.new(1,0,1,0),
                 Text                   = "",
                 ZIndex                 = 6,
             })
@@ -1887,31 +1766,31 @@ function NovaField:CreateWindow(options)
                 if isOpen then
                     ClipFrame.AutomaticSize = Enum.AutomaticSize.Y
                     if ChevronLbl then
-                        Tween(ChevronLbl, { TextTransparency = 0, TextColor3 = T.Muted }, 0.15)
+                        Tween(ChevronLbl, { TextTransparency=0, TextColor3=T.Muted }, 0.15)
                         ChevronLbl.Text = Icons.chevron_up
                     end
                 else
                     ClipFrame.AutomaticSize = Enum.AutomaticSize.None
-                    Tween(ClipFrame, { Size = UDim2.new(1, 0, 0, 0) }, 0.25)
+                    Tween(ClipFrame, { Size=UDim2.new(1,0,0,0) }, 0.25)
                     if ChevronLbl then
-                        Tween(ChevronLbl, { TextTransparency = 0.5 }, 0.15)
+                        Tween(ChevronLbl, { TextTransparency=0.5 }, 0.15)
                         ChevronLbl.Text = Icons.chevron_down
                     end
                 end
             end)
 
-            -- ── SECTION OBJECT
             local SectionObj = {}
             SectionObj._Content = SecContent
             SectionObj._Theme   = T
             SectionObj._Save    = Save
             SectionObj._Window  = self._Window
 
+            -- Card factory — uses UIListLayout inside instead of manual positions
             local function MakeCard(lo)
                 local Card = New("Frame", {
                     Parent           = SecContent,
                     BackgroundColor3 = T.Card,
-                    Size             = UDim2.new(1, 0, 0, 0),
+                    Size             = UDim2.new(1,0,0,0),
                     AutomaticSize    = Enum.AutomaticSize.Y,
                     ZIndex           = 4,
                     LayoutOrder      = lo or 0,
@@ -1920,7 +1799,10 @@ function NovaField:CreateWindow(options)
                 MakeCorner(Card, 12)
                 local stroke = MakeStroke(Card, T.Border, 1, 0)
                 Tag(stroke, "Border")
-                MakePadding(Card, 14, 14, 15, 15)
+                -- Unified padding: 14px top/bottom, 16px left/right
+                MakePadding(Card, 14, 14, 16, 16)
+                -- Vertical list inside card
+                MakeList(Card, 6)
                 return Card
             end
 
@@ -1935,100 +1817,102 @@ function NovaField:CreateWindow(options)
                 default = self._Save:Get(saveKey2, default)
 
                 local Card = MakeCard(#SecContent:GetChildren())
-                local Row  = New("Frame", {
+
+                -- Row: text left, toggle right
+                local Row = New("Frame", {
                     Parent                 = Card,
                     BackgroundTransparency = 1,
-                    Size                   = UDim2.new(1, 0, 0, 0),
-                    AutomaticSize          = Enum.AutomaticSize.Y,
+                    Size                   = UDim2.new(1,0,0,26),
                     ZIndex                 = 5,
+                    LayoutOrder            = 0,
                 })
 
-                local TextCol = New("Frame", {
+                -- Text column
+                New("TextLabel", {
                     Parent                 = Row,
                     BackgroundTransparency = 1,
-                    Position               = UDim2.new(0, 0, 0, 0),
-                    Size                   = UDim2.new(1, -58, 0, 0),
-                    AutomaticSize          = Enum.AutomaticSize.Y,
-                    ZIndex                 = 5,
-                })
-                New("UIListLayout", {
-                    Parent    = TextCol,
-                    Padding   = UDim.new(0, 3),
-                    SortOrder = Enum.SortOrder.LayoutOrder,
-                })
-                New("TextLabel", {
-                    Parent                 = TextCol,
-                    BackgroundTransparency = 1,
-                    Size                   = UDim2.new(1, 0, 0, 18),
+                    AnchorPoint            = Vector2.new(0,0.5),
+                    Position               = UDim2.new(0,0,0.5,0),
+                    Size                   = UDim2.new(1,-58,0,20),
                     Text                   = title,
                     TextColor3             = T.Text,
                     TextSize               = 14,
                     Font                   = Enum.Font.GothamBold,
                     TextXAlignment         = Enum.TextXAlignment.Left,
+                    TextYAlignment         = Enum.TextYAlignment.Center,
                     ZIndex                 = 6,
-                    LayoutOrder            = 0,
                 })
+
+                -- Toggle track — vertically centered in row
+                local TRACK_W, TRACK_H = 46, 26
+                local KNOB_SZ = 20
+                local TrackBg = New("Frame", {
+                    Parent           = Row,
+                    BackgroundColor3 = T.Toggle,
+                    AnchorPoint      = Vector2.new(1,0.5),
+                    Position         = UDim2.new(1,0,0.5,0),
+                    Size             = UDim2.new(0,TRACK_W,0,TRACK_H),
+                    ZIndex           = 6,
+                })
+                Tag(TrackBg, "Toggle")
+                MakeCorner(TrackBg, TRACK_H/2)
+                local trackStroke = MakeStroke(TrackBg, T.Border, 1, 0)
+                Tag(trackStroke, "Border")
+
+                local Knob = New("Frame", {
+                    Parent           = TrackBg,
+                    BackgroundColor3 = Color3.fromRGB(160,160,170),
+                    AnchorPoint      = Vector2.new(0,0.5),
+                    Position         = UDim2.new(0,3,0.5,0),
+                    Size             = UDim2.new(0,KNOB_SZ,0,KNOB_SZ),
+                    ZIndex           = 7,
+                })
+                MakeCorner(Knob, KNOB_SZ/2)
+
                 if desc ~= "" then
                     New("TextLabel", {
-                        Parent                 = TextCol,
+                        Parent                 = Card,
                         BackgroundTransparency = 1,
-                        Size                   = UDim2.new(1, 0, 0, 14),
+                        Size                   = UDim2.new(1,0,0,14),
                         Text                   = desc,
                         TextColor3             = T.SubText,
                         TextSize               = 11,
                         Font                   = Enum.Font.Gotham,
                         TextXAlignment         = Enum.TextXAlignment.Left,
-                        ZIndex                 = 6,
+                        ZIndex                 = 5,
                         LayoutOrder            = 1,
                     })
                 end
 
-                local TOGGLE_W, TOGGLE_H = 48, 26
-                local ToggleTrack = New("Frame", {
-                    Parent           = Row,
-                    BackgroundColor3 = default and T.Accent or T.Toggle,
-                    AnchorPoint      = Vector2.new(1, 0.5),
-                    Position         = UDim2.new(1, 0, 0.5, 0),
-                    Size             = UDim2.new(0, TOGGLE_W, 0, TOGGLE_H),
-                    ZIndex           = 6,
-                })
-                Tag(ToggleTrack, default and "Accent" or "Toggle")
-                MakeCorner(ToggleTrack, TOGGLE_H/2)
-
-                local Knob = New("Frame", {
-                    Parent           = ToggleTrack,
-                    BackgroundColor3 = Color3.fromRGB(255, 255, 255),
-                    AnchorPoint      = Vector2.new(0.5, 0.5),
-                    Position         = UDim2.new(0, default and TOGGLE_W - 13 or 13, 0.5, 0),
-                    Size             = UDim2.new(0, 20, 0, 20),
-                    ZIndex           = 7,
-                })
-                MakeCorner(Knob, 10)
-
                 local val = default
-                local ToggleBtn = New("TextButton", {
-                    Parent                 = ToggleTrack,
-                    BackgroundTransparency = 1,
-                    Size                   = UDim2.new(1, 0, 1, 0),
-                    Text                   = "",
-                    ZIndex                 = 8,
-                })
-
                 local function SetToggle(v)
                     val = v
-                    local knobX = v and TOGGLE_W - 13 or 13
-                    Tween(ToggleTrack, { BackgroundColor3 = v and T.Accent or T.Toggle }, 0.2)
-                    Tween(Knob, { Position = UDim2.new(0, knobX, 0.5, 0) }, 0.2, Enum.EasingStyle.Back)
-                    pcall(function() ToggleTrack:SetAttribute("ThemeRole", v and "Accent" or "Toggle") end)
+                    if v then
+                        Tween(TrackBg, { BackgroundColor3 = T.Accent }, 0.2)
+                        Tween(Knob,    { Position = UDim2.new(1,-(KNOB_SZ+3),0.5,0), BackgroundColor3 = Color3.fromRGB(255,255,255) }, 0.2, Enum.EasingStyle.Back)
+                    else
+                        Tween(TrackBg, { BackgroundColor3 = T.Toggle }, 0.2)
+                        Tween(Knob,    { Position = UDim2.new(0,3,0.5,0), BackgroundColor3 = Color3.fromRGB(160,160,170) }, 0.2)
+                    end
                     self._Save:Set(saveKey2, v)
                     SafeCall(callback, v)
                 end
 
+                SetToggle(default)
+
+                local ToggleBtn = New("TextButton", {
+                    Parent                 = Card,
+                    BackgroundTransparency = 1,
+                    AnchorPoint            = Vector2.new(0,0),
+                    Position               = UDim2.new(0,-16,0,-14),
+                    Size                   = UDim2.new(1,32,1,28),
+                    Text                   = "",
+                    ZIndex                 = 8,
+                })
                 ToggleBtn.MouseButton1Click:Connect(function() SetToggle(not val) end)
 
-                local el = { _Frame = Card, _Title = title }
+                local el = { _Frame=Card, _Title=title }
                 table.insert(self._Window._AllElements, el)
-
                 local ToggleObj = {}
                 function ToggleObj:Set(v) SetToggle(v) end
                 function ToggleObj:Get() return val end
@@ -2036,7 +1920,7 @@ function NovaField:CreateWindow(options)
             end
 
             -- ── CreateSlider
-            -- Fixed: title left, value right aligned; track centered in card; knob centered on track
+            -- FIXED: AutomaticSize card, HeaderRow + desc via list, track in own frame
             function SectionObj:CreateSlider(opts)
                 local title    = opts.Title       or "Slider"
                 local desc     = opts.Description or ""
@@ -2051,18 +1935,21 @@ function NovaField:CreateWindow(options)
 
                 local Card = MakeCard(#SecContent:GetChildren())
 
-                -- Header row: title left, value right
+                -- Header row: title left, value right — fixed height, not AutomaticSize
                 local HeaderRow = New("Frame", {
                     Parent                 = Card,
                     BackgroundTransparency = 1,
-                    Size                   = UDim2.new(1, 0, 0, 18),
+                    Size                   = UDim2.new(1,0,0,20),
                     ZIndex                 = 5,
+                    LayoutOrder            = 0,
                 })
+
                 New("TextLabel", {
                     Parent                 = HeaderRow,
                     BackgroundTransparency = 1,
-                    Position               = UDim2.new(0, 0, 0, 0),
-                    Size                   = UDim2.new(0.62, 0, 1, 0),
+                    AnchorPoint            = Vector2.new(0,0.5),
+                    Position               = UDim2.new(0,0,0.5,0),
+                    Size                   = UDim2.new(0.65,0,1,0),
                     Text                   = title,
                     TextColor3             = T.Text,
                     TextSize               = 14,
@@ -2071,13 +1958,14 @@ function NovaField:CreateWindow(options)
                     TextYAlignment         = Enum.TextYAlignment.Center,
                     ZIndex                 = 6,
                 })
+
                 local ValLabel = New("TextLabel", {
                     Parent                 = HeaderRow,
                     BackgroundTransparency = 1,
-                    AnchorPoint            = Vector2.new(1, 0),
-                    Position               = UDim2.new(1, 0, 0, 0),
-                    Size                   = UDim2.new(0.38, 0, 1, 0),
-                    Text                   = tostring(default) .. suffix,
+                    AnchorPoint            = Vector2.new(1,0.5),
+                    Position               = UDim2.new(1,0,0.5,0),
+                    Size                   = UDim2.new(0.35,0,1,0),
+                    Text                   = tostring(default)..suffix,
                     TextColor3             = T.Accent,
                     TextSize               = 13,
                     Font                   = Enum.Font.GothamBold,
@@ -2091,30 +1979,32 @@ function NovaField:CreateWindow(options)
                     New("TextLabel", {
                         Parent                 = Card,
                         BackgroundTransparency = 1,
-                        Size                   = UDim2.new(1, 0, 0, 14),
+                        Size                   = UDim2.new(1,0,0,14),
                         Text                   = desc,
                         TextColor3             = T.SubText,
                         TextSize               = 11,
                         Font                   = Enum.Font.Gotham,
                         TextXAlignment         = Enum.TextXAlignment.Left,
                         ZIndex                 = 5,
+                        LayoutOrder            = 1,
                     })
                 end
 
-                -- Track container — gives knob room to hang off edges
+                -- Track container — gives knob 10px breathing room on each side
                 local TrackContainer = New("Frame", {
                     Parent                 = Card,
                     BackgroundTransparency = 1,
-                    Size                   = UDim2.new(1, 0, 0, 24),
+                    Size                   = UDim2.new(1,0,0,26),
                     ZIndex                 = 5,
+                    LayoutOrder            = 2,
                 })
 
                 local SliderTrack = New("Frame", {
                     Parent           = TrackContainer,
                     BackgroundColor3 = T.Border,
-                    AnchorPoint      = Vector2.new(0, 0.5),
-                    Position         = UDim2.new(0, 10, 0.5, 0),
-                    Size             = UDim2.new(1, -20, 0, 5),
+                    AnchorPoint      = Vector2.new(0,0.5),
+                    Position         = UDim2.new(0,10,0.5,0),
+                    Size             = UDim2.new(1,-20,0,5),
                     ZIndex           = 5,
                 })
                 Tag(SliderTrack, "Border")
@@ -2123,31 +2013,32 @@ function NovaField:CreateWindow(options)
                 local SliderFill = New("Frame", {
                     Parent           = SliderTrack,
                     BackgroundColor3 = T.Accent,
-                    Size             = UDim2.new((default - min) / math.max(max - min, 1), 0, 1, 0),
+                    AnchorPoint      = Vector2.new(0,0),
+                    Size             = UDim2.new((default-min)/math.max(max-min,1),0,1,0),
                     ZIndex           = 6,
                 })
                 Tag(SliderFill, "Accent")
                 MakeCorner(SliderFill, 3)
 
-                -- Knob — anchored at fill edge, vertically centered on track
+                -- Knob: centered vertically on track, positioned at fill endpoint
                 local Knob = New("Frame", {
                     Parent           = SliderTrack,
-                    BackgroundColor3 = Color3.fromRGB(255, 255, 255),
-                    AnchorPoint      = Vector2.new(0.5, 0.5),
-                    Position         = UDim2.new((default - min) / math.max(max - min, 1), 0, 0.5, 0),
-                    Size             = UDim2.new(0, 18, 0, 18),
+                    BackgroundColor3 = Color3.fromRGB(255,255,255),
+                    AnchorPoint      = Vector2.new(0.5,0.5),
+                    Position         = UDim2.new((default-min)/math.max(max-min,1),0,0.5,0),
+                    Size             = UDim2.new(0,18,0,18),
                     ZIndex           = 7,
                 })
                 MakeCorner(Knob, 9)
                 MakeStroke(Knob, T.Accent, 2, 0.15)
 
-                -- Invisible hit area — wider than track so touch/mouse can grab easily
+                -- Wide invisible hit area
                 local SliderBtn = New("TextButton", {
                     Parent                 = TrackContainer,
                     BackgroundTransparency = 1,
-                    AnchorPoint            = Vector2.new(0, 0.5),
-                    Position               = UDim2.new(0, 0, 0.5, 0),
-                    Size                   = UDim2.new(1, 0, 0, 36),
+                    AnchorPoint            = Vector2.new(0,0.5),
+                    Position               = UDim2.new(0,0,0.5,0),
+                    Size                   = UDim2.new(1,0,0,36),
                     Text                   = "",
                     ZIndex                 = 9,
                 })
@@ -2158,13 +2049,13 @@ function NovaField:CreateWindow(options)
                 local function UpdateSlider(absX)
                     local trackPos  = SliderTrack.AbsolutePosition.X
                     local trackSize = SliderTrack.AbsoluteSize.X
-                    local pct = math.clamp((absX - trackPos) / math.max(trackSize, 1), 0, 1)
-                    local newVal = math.round(min + pct * (max - min))
+                    local pct = math.clamp((absX-trackPos)/math.max(trackSize,1),0,1)
+                    local newVal = math.round(min + pct*(max-min))
                     if newVal == value then return end
                     value = newVal
-                    ValLabel.Text   = tostring(value) .. suffix
-                    SliderFill.Size = UDim2.new(pct, 0, 1, 0)
-                    Knob.Position   = UDim2.new(pct, 0, 0.5, 0)
+                    ValLabel.Text   = tostring(value)..suffix
+                    SliderFill.Size = UDim2.new(pct,0,1,0)
+                    Knob.Position   = UDim2.new(pct,0,0.5,0)
                     self._Save:Set(saveKey2, value)
                     SafeCall(callback, value)
                 end
@@ -2173,34 +2064,34 @@ function NovaField:CreateWindow(options)
                     if input.UserInputType == Enum.UserInputType.MouseButton1
                     or input.UserInputType == Enum.UserInputType.Touch then
                         sliderDragging = true
-                        Tween(Knob, { Size = UDim2.new(0, 22, 0, 22) }, 0.1, Enum.EasingStyle.Back)
+                        Tween(Knob, { Size=UDim2.new(0,22,0,22) }, 0.1, Enum.EasingStyle.Back)
                         UpdateSlider(input.Position.X)
                     end
                 end)
                 UserInputService.InputChanged:Connect(function(input)
-                    if sliderDragging and (input.UserInputType == Enum.UserInputType.MouseMovement
-                    or input.UserInputType == Enum.UserInputType.Touch) then
+                    if sliderDragging and (input.UserInputType==Enum.UserInputType.MouseMovement
+                    or input.UserInputType==Enum.UserInputType.Touch) then
                         UpdateSlider(input.Position.X)
                     end
                 end)
                 UserInputService.InputEnded:Connect(function(input)
-                    if (input.UserInputType == Enum.UserInputType.MouseButton1
-                    or input.UserInputType == Enum.UserInputType.Touch) and sliderDragging then
+                    if (input.UserInputType==Enum.UserInputType.MouseButton1
+                    or input.UserInputType==Enum.UserInputType.Touch) and sliderDragging then
                         sliderDragging = false
-                        Tween(Knob, { Size = UDim2.new(0, 18, 0, 18) }, 0.15)
+                        Tween(Knob, { Size=UDim2.new(0,18,0,18) }, 0.15)
                     end
                 end)
 
-                local el = { _Frame = Card, _Title = title }
+                local el = { _Frame=Card, _Title=title }
                 table.insert(self._Window._AllElements, el)
 
                 local SliderObj = {}
                 function SliderObj:Set(v)
-                    value = math.clamp(v, min, max)
-                    local pct = (value - min) / math.max(max - min, 1)
-                    ValLabel.Text = tostring(value) .. suffix
-                    Tween(SliderFill, { Size = UDim2.new(pct, 0, 1, 0) }, 0.2)
-                    Tween(Knob,       { Position = UDim2.new(pct, 0, 0.5, 0) }, 0.2)
+                    value = math.clamp(v,min,max)
+                    local pct = (value-min)/math.max(max-min,1)
+                    ValLabel.Text = tostring(value)..suffix
+                    Tween(SliderFill, { Size=UDim2.new(pct,0,1,0) }, 0.2)
+                    Tween(Knob,       { Position=UDim2.new(pct,0,0.5,0) }, 0.2)
                     self._Save:Set(saveKey2, value); SafeCall(callback, value)
                 end
                 function SliderObj:Get() return value end
@@ -2208,7 +2099,6 @@ function NovaField:CreateWindow(options)
             end
 
             -- ── CreateDropdown
-            -- Fixed: ▾ rotates to ▴ when open; list escapes all clips
             function SectionObj:CreateDropdown(opts)
                 local title    = opts.Title       or "Dropdown"
                 local desc     = opts.Description or ""
@@ -2225,33 +2115,36 @@ function NovaField:CreateWindow(options)
                 New("TextLabel", {
                     Parent                 = Card,
                     BackgroundTransparency = 1,
-                    Size                   = UDim2.new(1, 0, 0, 18),
+                    Size                   = UDim2.new(1,0,0,18),
                     Text                   = title,
                     TextColor3             = T.Text,
                     TextSize               = 14,
                     Font                   = Enum.Font.GothamBold,
                     TextXAlignment         = Enum.TextXAlignment.Left,
                     ZIndex                 = 5,
+                    LayoutOrder            = 0,
                 })
                 if desc ~= "" then
                     New("TextLabel", {
                         Parent                 = Card,
                         BackgroundTransparency = 1,
-                        Size                   = UDim2.new(1, 0, 0, 14),
+                        Size                   = UDim2.new(1,0,0,14),
                         Text                   = desc,
                         TextColor3             = T.SubText,
                         TextSize               = 11,
                         Font                   = Enum.Font.Gotham,
                         TextXAlignment         = Enum.TextXAlignment.Left,
                         ZIndex                 = 5,
+                        LayoutOrder            = 1,
                     })
                 end
 
                 local SelFrame = New("Frame", {
                     Parent           = Card,
                     BackgroundColor3 = T.CardAlt,
-                    Size             = UDim2.new(1, 0, 0, 36),
+                    Size             = UDim2.new(1,0,0,36),
                     ZIndex           = 5,
+                    LayoutOrder      = 2,
                 })
                 Tag(SelFrame, "CardAlt")
                 MakeCorner(SelFrame, 10)
@@ -2261,35 +2154,38 @@ function NovaField:CreateWindow(options)
                 local SelLabel = New("TextLabel", {
                     Parent                 = SelFrame,
                     BackgroundTransparency = 1,
-                    Position               = UDim2.new(0, 12, 0, 0),
-                    Size                   = UDim2.new(1, -38, 1, 0),
+                    AnchorPoint            = Vector2.new(0,0.5),
+                    Position               = UDim2.new(0,12,0.5,0),
+                    Size                   = UDim2.new(1,-38,0,20),
                     Text                   = tostring(default),
                     TextColor3             = T.Text,
                     TextSize               = 13,
                     Font                   = Enum.Font.Gotham,
                     TextXAlignment         = Enum.TextXAlignment.Left,
+                    TextYAlignment         = Enum.TextYAlignment.Center,
                     ZIndex                 = 6,
                 })
 
-                -- Chevron ▾ / ▴
                 local ChevLabel = New("TextLabel", {
                     Parent                 = SelFrame,
                     BackgroundTransparency = 1,
-                    AnchorPoint            = Vector2.new(1, 0.5),
-                    Position               = UDim2.new(1, -10, 0.5, 0),
-                    Size                   = UDim2.new(0, 16, 0, 16),
+                    AnchorPoint            = Vector2.new(1,0.5),
+                    Position               = UDim2.new(1,-10,0.5,0),
+                    Size                   = UDim2.new(0,16,0,16),
                     Text                   = Icons.chevron_down,
                     TextColor3             = T.Muted,
                     TextSize               = 14,
                     Font                   = Enum.Font.Code,
+                    TextXAlignment         = Enum.TextXAlignment.Center,
+                    TextYAlignment         = Enum.TextYAlignment.Center,
                     ZIndex                 = 6,
                 })
 
-                -- Dropdown list parented to ScreenGui so it escapes all clips
+                -- Dropdown list parented to ScreenGui to escape clips
                 local DropList = New("Frame", {
                     Parent           = ScreenGui,
                     BackgroundColor3 = T.Card,
-                    Size             = UDim2.new(0, 1, 0, 0),
+                    Size             = UDim2.new(0,1,0,0),
                     Visible          = false,
                     ZIndex           = 30,
                     ClipsDescendants = true,
@@ -2301,8 +2197,8 @@ function NovaField:CreateWindow(options)
                 local DropScroll = New("ScrollingFrame", {
                     Parent               = DropList,
                     BackgroundTransparency = 1,
-                    Size                 = UDim2.new(1, 0, 1, 0),
-                    CanvasSize           = UDim2.new(0, 0, 0, 0),
+                    Size                 = UDim2.new(1,0,1,0),
+                    CanvasSize           = UDim2.new(0,0,0,0),
                     AutomaticCanvasSize  = Enum.AutomaticSize.Y,
                     ScrollBarThickness   = 2,
                     ScrollBarImageColor3 = T.ScrollBar,
@@ -2317,9 +2213,9 @@ function NovaField:CreateWindow(options)
                 local function UpdateDropPosition()
                     local absPos  = SelFrame.AbsolutePosition
                     local absSize = SelFrame.AbsoluteSize
-                    local itemH   = math.min(#options2 * 36 + 10, 186)
-                    DropList.Position = UDim2.new(0, absPos.X, 0, absPos.Y + absSize.Y + 4)
-                    DropList.Size     = UDim2.new(0, absSize.X, 0, itemH)
+                    local itemH   = math.min(#options2*36+10, 186)
+                    DropList.Position = UDim2.new(0,absPos.X, 0,absPos.Y+absSize.Y+4)
+                    DropList.Size     = UDim2.new(0,absSize.X, 0,itemH)
                 end
 
                 local function CloseDropdown()
@@ -2333,12 +2229,12 @@ function NovaField:CreateWindow(options)
                     end)
                 end
 
-                for _, opt in ipairs(options2) do
+                for _,opt in ipairs(options2) do
                     local Item = New("Frame", {
                         Parent                 = DropScroll,
                         BackgroundColor3       = T.Card,
                         BackgroundTransparency = 1,
-                        Size                   = UDim2.new(1, 0, 0, 34),
+                        Size                   = UDim2.new(1,0,0,34),
                         ZIndex                 = 32,
                     })
                     MakeCorner(Item, 7)
@@ -2347,26 +2243,29 @@ function NovaField:CreateWindow(options)
                     New("TextLabel", {
                         Parent                 = Item,
                         BackgroundTransparency = 1,
-                        Size                   = UDim2.new(1, -20, 1, 0),
+                        AnchorPoint            = Vector2.new(0,0.5),
+                        Position               = UDim2.new(0,0,0.5,0),
+                        Size                   = UDim2.new(1,-20,0,18),
                         Text                   = tostring(opt),
                         TextColor3             = T.Text,
                         TextSize               = 13,
                         Font                   = Enum.Font.Gotham,
                         TextXAlignment         = Enum.TextXAlignment.Left,
+                        TextYAlignment         = Enum.TextYAlignment.Center,
                         ZIndex                 = 33,
                     })
                     local ItemBtn = New("TextButton", {
                         Parent                 = Item,
                         BackgroundTransparency = 1,
-                        Size                   = UDim2.new(1, 0, 1, 0),
+                        Size                   = UDim2.new(1,0,1,0),
                         Text                   = "",
                         ZIndex                 = 34,
                     })
                     ItemBtn.MouseEnter:Connect(function()
-                        Tween(Item, { BackgroundColor3 = T.CardAlt, BackgroundTransparency = 0 }, 0.1)
+                        Tween(Item, { BackgroundColor3=T.CardAlt, BackgroundTransparency=0 }, 0.1)
                     end)
                     ItemBtn.MouseLeave:Connect(function()
-                        Tween(Item, { BackgroundTransparency = 1 }, 0.1)
+                        Tween(Item, { BackgroundTransparency=1 }, 0.1)
                     end)
                     ItemBtn.MouseButton1Click:Connect(function()
                         value = opt
@@ -2380,88 +2279,119 @@ function NovaField:CreateWindow(options)
                 local SelBtn = New("TextButton", {
                     Parent                 = SelFrame,
                     BackgroundTransparency = 1,
-                    Size                   = UDim2.new(1, 0, 1, 0),
+                    Size                   = UDim2.new(1,0,1,0),
                     Text                   = "",
                     ZIndex                 = 7,
                 })
+
                 SelBtn.MouseButton1Click:Connect(function()
                     open = not open
                     if open then
                         UpdateDropPosition()
                         DropList.Visible = true
-                        DropList.Size    = UDim2.new(0, SelFrame.AbsoluteSize.X, 0, 0)
-                        local targetH    = math.min(#options2 * 36 + 10, 186)
-                        Tween(DropList,  { Size = UDim2.new(0, SelFrame.AbsoluteSize.X, 0, targetH) }, 0.25, Enum.EasingStyle.Back)
-                        Tween(selStroke, { Color = T.Accent }, 0.15)
+                        local itemH = math.min(#options2*36+10, 186)
+                        Tween(DropList, { Size = UDim2.new(0,DropList.Size.X.Offset,0,itemH) }, 0.2, Enum.EasingStyle.Back)
                         ChevLabel.Text = Icons.chevron_up
                         Tween(ChevLabel, { TextColor3 = T.Accent }, 0.15)
+                        Tween(selStroke, { Color = T.Accent }, 0.15)
                     else
                         CloseDropdown()
                     end
                 end)
 
-                local el = { _Frame = Card, _Title = title }
+                local el = { _Frame=Card, _Title=title }
                 table.insert(self._Window._AllElements, el)
 
                 local DropObj = {}
-                function DropObj:Set(v) value = v; SelLabel.Text = tostring(v); self._Save:Set(saveKey2, v); SafeCall(callback, v) end
+                function DropObj:Set(v)
+                    value = v; SelLabel.Text = tostring(v)
+                    self._Save:Set(saveKey2, v); SafeCall(callback, v)
+                end
                 function DropObj:Get() return value end
                 return DropObj
             end
 
             -- ── CreateButton
             function SectionObj:CreateButton(opts)
-                local title    = opts.Title    or "Button"
+                local title    = opts.Title       or "Button"
+                local desc     = opts.Description or ""
                 local callback = opts.Callback
 
                 local Card = New("Frame", {
                     Parent           = SecContent,
                     BackgroundColor3 = T.Accent,
-                    Size             = UDim2.new(1, 0, 0, 44),
+                    Size             = UDim2.new(1,0,0,0),
+                    AutomaticSize    = Enum.AutomaticSize.Y,
                     ZIndex           = 4,
                     LayoutOrder      = #SecContent:GetChildren(),
                 })
                 Tag(Card, "Accent")
                 MakeCorner(Card, 12)
+                MakePadding(Card, 14, 14, 16, 16)
+                MakeList(Card, 4)
 
                 New("TextLabel", {
                     Parent                 = Card,
                     BackgroundTransparency = 1,
-                    Size                   = UDim2.new(1, 0, 1, 0),
+                    Size                   = UDim2.new(1,0,0,18),
                     Text                   = title,
-                    TextColor3             = Color3.fromRGB(255, 255, 255),
+                    TextColor3             = Color3.fromRGB(255,255,255),
                     TextSize               = 14,
                     Font                   = Enum.Font.GothamBold,
                     TextXAlignment         = Enum.TextXAlignment.Center,
                     ZIndex                 = 5,
+                    LayoutOrder            = 0,
                 })
+
+                if desc ~= "" then
+                    New("TextLabel", {
+                        Parent                 = Card,
+                        BackgroundTransparency = 1,
+                        Size                   = UDim2.new(1,0,0,14),
+                        Text                   = desc,
+                        TextColor3             = Color3.new(1,1,1),
+                        TextTransparency       = 0.45,
+                        TextSize               = 11,
+                        Font                   = Enum.Font.Gotham,
+                        TextXAlignment         = Enum.TextXAlignment.Center,
+                        ZIndex                 = 5,
+                        LayoutOrder            = 1,
+                    })
+                end
 
                 local Btn = New("TextButton", {
                     Parent                 = Card,
                     BackgroundTransparency = 1,
-                    Size                   = UDim2.new(1, 0, 1, 0),
+                    AnchorPoint            = Vector2.new(0,0),
+                    Position               = UDim2.new(0,-16,0,-14),
+                    Size                   = UDim2.new(1,32,1,28),
                     Text                   = "",
                     ZIndex                 = 6,
                 })
-
                 Btn.MouseButton1Down:Connect(function()
-                    Tween(Card, { BackgroundColor3 = T.AccentDark, Size = UDim2.new(1, 0, 0, 40) }, 0.1)
+                    Tween(Card, { BackgroundColor3=T.AccentDark }, 0.1)
                 end)
-                Btn.MouseButton1Click:Connect(function()
-                    Tween(Card, { BackgroundColor3 = T.Accent, Size = UDim2.new(1, 0, 0, 44) }, 0.16, Enum.EasingStyle.Back)
+                Btn.MouseButton1Up:Connect(function()
+                    Tween(Card, { BackgroundColor3=T.Accent }, 0.15, Enum.EasingStyle.Back)
                     SafeCall(callback)
                 end)
+                Btn.MouseEnter:Connect(function()
+                    Tween(Card, { BackgroundColor3=T.AccentDark }, 0.15)
+                end)
+                Btn.MouseLeave:Connect(function()
+                    Tween(Card, { BackgroundColor3=T.Accent }, 0.15)
+                end)
 
-                local el = { _Frame = Card, _Title = title }
+                local el = { _Frame=Card, _Title=title }
                 table.insert(self._Window._AllElements, el)
             end
 
-            -- ── CreateTextbox
-            function SectionObj:CreateTextbox(opts)
+            -- ── CreateTextBox
+            function SectionObj:CreateTextBox(opts)
                 local title       = opts.Title       or "Input"
                 local desc        = opts.Description or ""
+                local placeholder = opts.Placeholder or "Type here..."
                 local default     = opts.Default     or ""
-                local placeholder = opts.Placeholder or "Enter text..."
                 local saveKey2    = opts.Flag        or title
                 local callback    = opts.Callback
 
@@ -2472,33 +2402,36 @@ function NovaField:CreateWindow(options)
                 New("TextLabel", {
                     Parent                 = Card,
                     BackgroundTransparency = 1,
-                    Size                   = UDim2.new(1, 0, 0, 18),
+                    Size                   = UDim2.new(1,0,0,18),
                     Text                   = title,
                     TextColor3             = T.Text,
                     TextSize               = 14,
                     Font                   = Enum.Font.GothamBold,
                     TextXAlignment         = Enum.TextXAlignment.Left,
                     ZIndex                 = 5,
+                    LayoutOrder            = 0,
                 })
                 if desc ~= "" then
                     New("TextLabel", {
                         Parent                 = Card,
                         BackgroundTransparency = 1,
-                        Size                   = UDim2.new(1, 0, 0, 14),
+                        Size                   = UDim2.new(1,0,0,14),
                         Text                   = desc,
                         TextColor3             = T.SubText,
                         TextSize               = 11,
                         Font                   = Enum.Font.Gotham,
                         TextXAlignment         = Enum.TextXAlignment.Left,
                         ZIndex                 = 5,
+                        LayoutOrder            = 1,
                     })
                 end
 
                 local InputBg = New("Frame", {
                     Parent           = Card,
                     BackgroundColor3 = T.CardAlt,
-                    Size             = UDim2.new(1, 0, 0, 38),
+                    Size             = UDim2.new(1,0,0,38),
                     ZIndex           = 5,
+                    LayoutOrder      = 2,
                 })
                 Tag(InputBg, "CardAlt")
                 MakeCorner(InputBg, 10)
@@ -2508,8 +2441,8 @@ function NovaField:CreateWindow(options)
                 local TBox = New("TextBox", {
                     Parent                 = InputBg,
                     BackgroundTransparency = 1,
-                    Position               = UDim2.new(0, 12, 0, 0),
-                    Size                   = UDim2.new(1, -24, 1, 0),
+                    Position               = UDim2.new(0,12,0,0),
+                    Size                   = UDim2.new(1,-24,1,0),
                     PlaceholderText        = placeholder,
                     PlaceholderColor3      = T.Muted,
                     Text                   = default,
@@ -2520,21 +2453,20 @@ function NovaField:CreateWindow(options)
                     ClearTextOnFocus       = false,
                     ZIndex                 = 6,
                 })
-
                 TBox.Focused:Connect(function()
-                    Tween(inputStroke, { Color = T.Accent }, 0.2)
+                    Tween(inputStroke, { Color=T.Accent }, 0.2)
                 end)
                 TBox.FocusLost:Connect(function()
-                    Tween(inputStroke, { Color = T.Border }, 0.2)
+                    Tween(inputStroke, { Color=T.Border }, 0.2)
                     self._Save:Set(saveKey2, TBox.Text)
                     SafeCall(callback, TBox.Text)
                 end)
 
-                local el = { _Frame = Card, _Title = title }
+                local el = { _Frame=Card, _Title=title }
                 table.insert(self._Window._AllElements, el)
 
                 local TboxObj = {}
-                function TboxObj:Set(v) TBox.Text = v; self._Save:Set(saveKey2, v) end
+                function TboxObj:Set(v) TBox.Text=v; self._Save:Set(saveKey2,v) end
                 function TboxObj:Get() return TBox.Text end
                 return TboxObj
             end
@@ -2550,18 +2482,19 @@ function NovaField:CreateWindow(options)
                 New("TextLabel", {
                     Parent                 = Card,
                     BackgroundTransparency = 1,
-                    Size                   = UDim2.new(1, 0, 0, 18),
+                    Size                   = UDim2.new(1,0,0,18),
                     Text                   = cardTitle,
                     TextColor3             = T.Text,
                     TextSize               = 14,
                     Font                   = Enum.Font.GothamBold,
                     TextXAlignment         = Enum.TextXAlignment.Left,
                     ZIndex                 = 5,
+                    LayoutOrder            = 0,
                 })
                 New("TextLabel", {
                     Parent                 = Card,
                     BackgroundTransparency = 1,
-                    Size                   = UDim2.new(1, 0, 0, 0),
+                    Size                   = UDim2.new(1,0,0,0),
                     AutomaticSize          = Enum.AutomaticSize.Y,
                     Text                   = content,
                     TextColor3             = T.SubText,
@@ -2570,9 +2503,10 @@ function NovaField:CreateWindow(options)
                     TextXAlignment         = Enum.TextXAlignment.Left,
                     TextWrapped            = true,
                     ZIndex                 = 5,
+                    LayoutOrder            = 1,
                 })
 
-                local el = { _Frame = Card, _Title = cardTitle }
+                local el = { _Frame=Card, _Title=cardTitle }
                 table.insert(self._Window._AllElements, el)
             end
 
@@ -2581,18 +2515,18 @@ function NovaField:CreateWindow(options)
                 local StatRow = New("Frame", {
                     Parent                 = SecContent,
                     BackgroundTransparency = 1,
-                    Size                   = UDim2.new(1, 0, 0, 64),
+                    Size                   = UDim2.new(1,0,0,64),
                     ZIndex                 = 4,
                     LayoutOrder            = #SecContent:GetChildren(),
                 })
                 New("UIListLayout", {
                     Parent        = StatRow,
                     FillDirection = Enum.FillDirection.Horizontal,
-                    Padding       = UDim.new(0, 7),
+                    Padding       = UDim.new(0,7),
                     SortOrder     = Enum.SortOrder.LayoutOrder,
                 })
 
-                for _, stat in ipairs(stats) do
+                for _,stat in ipairs(stats) do
                     local StatCard = New("Frame", {
                         Parent           = StatRow,
                         BackgroundColor3 = T.Card,
@@ -2606,9 +2540,9 @@ function NovaField:CreateWindow(options)
                     New("TextLabel", {
                         Parent                 = StatCard,
                         BackgroundTransparency = 1,
-                        AnchorPoint            = Vector2.new(0.5, 0),
-                        Position               = UDim2.new(0.5, 0, 0, 9),
-                        Size                   = UDim2.new(1, 0, 0, 13),
+                        AnchorPoint            = Vector2.new(0.5,0),
+                        Position               = UDim2.new(0.5,0,0,9),
+                        Size                   = UDim2.new(1,0,0,13),
                         Text                   = stat.Label or "STAT",
                         TextColor3             = T.Muted,
                         TextSize               = 9,
@@ -2619,9 +2553,9 @@ function NovaField:CreateWindow(options)
                     New("TextLabel", {
                         Parent                 = StatCard,
                         BackgroundTransparency = 1,
-                        AnchorPoint            = Vector2.new(0.5, 1),
-                        Position               = UDim2.new(0.5, 0, 1, -9),
-                        Size                   = UDim2.new(1, 0, 0, 20),
+                        AnchorPoint            = Vector2.new(0.5,1),
+                        Position               = UDim2.new(0.5,0,1,-9),
+                        Size                   = UDim2.new(1,0,0,20),
                         Text                   = stat.Value or "-",
                         TextColor3             = T.Accent,
                         TextSize               = 14,
@@ -2633,7 +2567,6 @@ function NovaField:CreateWindow(options)
             end
 
             -- ── CreateActionRow
-            -- Fixed: → arrow icon, not ">"
             function SectionObj:CreateActionRow(opts)
                 local rowTitle = opts.Title       or "Action"
                 local rowDesc  = opts.Description or ""
@@ -2642,21 +2575,22 @@ function NovaField:CreateWindow(options)
                 local Card = New("Frame", {
                     Parent           = SecContent,
                     BackgroundColor3 = T.Card,
-                    Size             = UDim2.new(1, 0, 0, rowDesc ~= "" and 56 or 44),
+                    Size             = UDim2.new(1,0,0, rowDesc~="" and 56 or 44),
                     ZIndex           = 4,
                     LayoutOrder      = #SecContent:GetChildren(),
                 })
                 Tag(Card, "Card")
                 MakeCorner(Card, 12)
-                MakeStroke(Card, T.Border, 1, 0)
+                local stroke = MakeStroke(Card, T.Border, 1, 0)
+                Tag(stroke, "Border")
                 MakePadding(Card, 0, 0, 16, 12)
 
                 local TitleLbl = New("TextLabel", {
                     Parent                 = Card,
                     BackgroundTransparency = 1,
-                    AnchorPoint            = Vector2.new(0, 0),
-                    Position               = UDim2.new(0, 0, 0, rowDesc ~= "" and 10 or 0),
-                    Size                   = UDim2.new(1, -26, 0, 18),
+                    AnchorPoint            = Vector2.new(0,0),
+                    Position               = UDim2.new(0,0,0, rowDesc~="" and 10 or 0),
+                    Size                   = UDim2.new(1,-26,0,18),
                     Text                   = rowTitle,
                     TextColor3             = T.Text,
                     TextSize               = 14,
@@ -2665,13 +2599,14 @@ function NovaField:CreateWindow(options)
                     TextYAlignment         = Enum.TextYAlignment.Center,
                     ZIndex                 = 5,
                 })
+
                 if rowDesc ~= "" then
                     New("TextLabel", {
                         Parent                 = Card,
                         BackgroundTransparency = 1,
-                        AnchorPoint            = Vector2.new(0, 0),
-                        Position               = UDim2.new(0, 0, 0, 30),
-                        Size                   = UDim2.new(1, -26, 0, 14),
+                        AnchorPoint            = Vector2.new(0,0),
+                        Position               = UDim2.new(0,0,0,30),
+                        Size                   = UDim2.new(1,-26,0,14),
                         Text                   = rowDesc,
                         TextColor3             = T.SubText,
                         TextSize               = 11,
@@ -2680,34 +2615,36 @@ function NovaField:CreateWindow(options)
                         ZIndex                 = 5,
                     })
                 end
-                -- Arrow icon (→) right side
+
                 local ArrowLbl = New("TextLabel", {
                     Parent                 = Card,
                     BackgroundTransparency = 1,
-                    AnchorPoint            = Vector2.new(1, 0.5),
-                    Position               = UDim2.new(1, 0, 0.5, 0),
-                    Size                   = UDim2.new(0, 18, 0, 18),
+                    AnchorPoint            = Vector2.new(1,0.5),
+                    Position               = UDim2.new(1,0,0.5,0),
+                    Size                   = UDim2.new(0,18,0,18),
                     Text                   = Icons.chevron_right,
                     TextColor3             = T.Muted,
                     TextSize               = 16,
                     Font                   = Enum.Font.Code,
+                    TextXAlignment         = Enum.TextXAlignment.Center,
+                    TextYAlignment         = Enum.TextYAlignment.Center,
                     ZIndex                 = 5,
                 })
 
                 local ActionBtn = New("TextButton", {
                     Parent                 = Card,
                     BackgroundTransparency = 1,
-                    Size                   = UDim2.new(1, 0, 1, 0),
+                    Size                   = UDim2.new(1,0,1,0),
                     Text                   = "",
                     ZIndex                 = 6,
                 })
                 ActionBtn.MouseEnter:Connect(function()
-                    Tween(Card,     { BackgroundColor3 = T.CardAlt }, 0.15)
-                    Tween(ArrowLbl, { TextColor3 = T.Accent }, 0.15)
+                    Tween(Card,     { BackgroundColor3=T.CardAlt }, 0.15)
+                    Tween(ArrowLbl, { TextColor3=T.Accent }, 0.15)
                 end)
                 ActionBtn.MouseLeave:Connect(function()
-                    Tween(Card,     { BackgroundColor3 = T.Card }, 0.15)
-                    Tween(ArrowLbl, { TextColor3 = T.Muted }, 0.15)
+                    Tween(Card,     { BackgroundColor3=T.Card }, 0.15)
+                    Tween(ArrowLbl, { TextColor3=T.Muted }, 0.15)
                 end)
                 ActionBtn.MouseButton1Click:Connect(function() SafeCall(callback) end)
             end
@@ -2718,45 +2655,32 @@ function NovaField:CreateWindow(options)
         return TabObj
     end -- CreateTab
 
-    -- ── Startup & Key (in correct sequence)
+    -- ── Startup & Key
     local function ShowWindow()
         Window.Visible = true
         Shadow.Visible = true
-        Window.Size    = UDim2.new(0, WINDOW_W, 0, 0)
+        -- Sync shadow to window position before animating
+        local wx = Window.Position.X.Offset
+        local wy = Window.Position.Y.Offset
+        Shadow.Position = UDim2.new(0, wx-SHADOW_PAD, 0, wy-SHADOW_PAD)
+        Shadow.Size     = UDim2.new(0, WINDOW_W+SHADOW_PAD*2, 0, WINDOW_H+SHADOW_PAD*2)
+        Window.Size     = UDim2.new(0, WINDOW_W, 0, 0)
         task.delay(0.05, function()
-            Tween(Window, { Size = UDim2.new(0, WINDOW_W, 0, WINDOW_H) }, 0.4, Enum.EasingStyle.Back)
+            Tween(Window, { Size=UDim2.new(0,WINDOW_W,0,WINDOW_H) }, 0.4, Enum.EasingStyle.Back)
         end)
     end
 
     if DoStartup and DoKey then
-        -- Show startup popup, then key system, then window
-        ShowStartupPopup({
-            Title       = Title,
-            OwnedBy     = Author,
-            Description = SubTitle,
-            Duration    = 3.5,
-        }, T, ScreenGui, function()
-            task.delay(0.1, function()
-                ShowKeySystem(KeyOptions, T, ScreenGui, ShowWindow)
-            end)
+        ShowStartupPopup({ Title=Title, OwnedBy=Author, Description=SubTitle, Duration=3.5 }, T, ScreenGui, function()
+            task.delay(0.1, function() ShowKeySystem(KeyOptions, T, ScreenGui, ShowWindow) end)
         end)
     elseif DoStartup then
-        -- Show startup popup then window
-        ShowStartupPopup({
-            Title       = Title,
-            OwnedBy     = Author,
-            Description = SubTitle,
-            Duration    = 3.5,
-        }, T, ScreenGui, function()
+        ShowStartupPopup({ Title=Title, OwnedBy=Author, Description=SubTitle, Duration=3.5 }, T, ScreenGui, function()
             task.delay(0.1, ShowWindow)
         end)
     elseif DoKey then
-        -- Show key system then window
-        task.delay(0.1, function()
-            ShowKeySystem(KeyOptions, T, ScreenGui, ShowWindow)
-        end)
+        task.delay(0.1, function() ShowKeySystem(KeyOptions, T, ScreenGui, ShowWindow) end)
     else
-        -- Show window directly
         task.delay(0.1, ShowWindow)
     end
 
@@ -2770,8 +2694,11 @@ return NovaField
 
 --[[
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-FULL USAGE EXAMPLE  (NovaField v1.2.0)
+FULL USAGE EXAMPLE  (NovaField v1.3.0)
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+-- Optional: set your Atlas ID for image icons
+-- NovaField.IconSystem.AtlasID = "rbxassetid://123456789"
 
 local NovaField = loadstring(game:HttpGet("YOUR_RAW_URL"))()
 
@@ -2783,50 +2710,33 @@ local Win = NovaField:CreateWindow({
     Theme         = "Nova",
     ConfigName    = "MyConfig",
     StartupPopup  = true,
-    KeySystem     = true,
-    KeySystemOptions = {
-        Title     = "Nova Access",
-        SubTitle  = "Verification Required",
-        Key       = {"SecretKey123"},
-        SaveKey   = true,
-        GrabKey   = "https://discord.gg/yourserver",
-        KeyExpiry = 7200,  -- 2 hours
-    },
+    KeySystem     = false,
 })
 
--- HOME TAB
 local HomeTab = Win:CreateTab({ Title = "Home",   Icon = "home"     })
 local InfoSec = HomeTab:CreateSection({ Title = "INFO", Collapsible = false })
-InfoSec:CreateInfoCard({ Title = "About", Content = "Built on NovaField v1.2.0." })
+InfoSec:CreateInfoCard({ Title = "About", Content = "Built on NovaField v1.3.0." })
 InfoSec:CreateStatRow({
     { Label = "VERSION", Value = "1.0.0"  },
     { Label = "BUILD",   Value = "Stable" },
-    { Label = "AUTHOR",  Value = "You"    },
+    { Label = "FPS",     Value = "60"     },
 })
 local QuickSec = HomeTab:CreateSection({ Title = "QUICK ACTIONS", Collapsible = false })
 QuickSec:CreateActionRow({ Title = "Open Discord", Description = "Join our community", Callback = function() end })
 
--- COMBAT TAB
 local CombatTab = Win:CreateTab({ Title = "Combat", Icon = "shield" })
 local AimbotSec = CombatTab:CreateSection({ Title = "AIMBOT" })
 AimbotSec:CreateToggle({ Title = "Silent Aim",  Description = "Locks onto targets silently", Default = false, Callback = function(v) end })
-AimbotSec:CreateToggle({ Title = "Aimbot",      Description = "Auto aim assist",             Default = false, Callback = function(v) end })
-AimbotSec:CreateSlider({ Title = "FOV Radius",  Description = "Field of view in degrees", Min = 10, Max = 360, Default = 90,  Callback = function(v) end })
+AimbotSec:CreateSlider({ Title = "FOV Radius",  Description = "Field of view in degrees", Min = 10, Max = 360, Default = 90, Callback = function(v) end })
 AimbotSec:CreateDropdown({ Title = "Hit Part",  Options = {"Head","Torso","Random"}, Default = "Head", Callback = function(v) end })
 AimbotSec:CreateButton({ Title = "Kill All", Callback = function() end })
-local VisualsSec = CombatTab:CreateSection({ Title = "VISUALS" })
-VisualsSec:CreateToggle({ Title = "Wall Hack",     Description = "See through walls",   Default = false, Callback = function(v) end })
-VisualsSec:CreateSlider({ Title = "Reach Distance",Description = "Max reach in studs",  Min = 1, Max = 50, Default = 5, Callback = function(v) end })
 
--- PLAYER TAB
-local PlayerTab = Win:CreateTab({ Title = "Player",   Icon = "user"     })
-local MoveSec   = PlayerTab:CreateSection({ Title = "MOVEMENT", Collapsible = false })
-MoveSec:CreateToggle({ Title = "Speed Hack", Description = "Enhanced movement speed", Default = false, Callback = function(v) end })
+local PlayerTab = Win:CreateTab({ Title = "Player", Icon = "user" })
+local MoveSec   = PlayerTab:CreateSection({ Title = "MOVEMENT" })
 MoveSec:CreateToggle({ Title = "Noclip",     Description = "Walk through objects",    Default = false, Callback = function(v) end })
 MoveSec:CreateSlider({ Title = "Walk Speed", Description = "Default: 16 studs/sec",  Min = 1, Max = 100, Default = 16, Callback = function(v) end })
 MoveSec:CreateSlider({ Title = "Jump Power", Description = "Default: 50",            Min = 0, Max = 200, Default = 50, Callback = function(v) end })
 
--- SETTINGS TAB
 local SettingsTab = Win:CreateTab({ Title = "Settings", Icon = "settings" })
 local AppSec = SettingsTab:CreateSection({ Title = "APPEARANCE", Collapsible = false })
 AppSec:CreateDropdown({
@@ -2836,6 +2746,5 @@ AppSec:CreateDropdown({
     Callback = function(v) Win:SetTheme(v) end,
 })
 
--- Notification
-Win:Notify({ Title = "Loaded!", Content = "NovaField v1.2.0 is ready.", Type = "Success", Duration = 4 })
+Win:Notify({ Title = "Loaded!", Content = "NovaField v1.3.0 is ready.", Type = "Success", Duration = 4 })
 ]]
