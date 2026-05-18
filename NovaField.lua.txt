@@ -294,42 +294,81 @@ local Themes = {
 -- ════════════════════════════════════════════════════════════════
 -- FIX: ICON SYSTEM — Clean geometric symbols (no emoji, works on all devices)
 -- ════════════════════════════════════════════════════════════════
+-- ════════════════════════════════════════════════════════════════
+-- Clean Modern Icon Symbols
+-- Unicode Only • No Emoji
+-- Professional Roblox UI Style
+-- ════════════════════════════════════════════════════════════════
+
 local IconSymbols = {
-    home     = "H",   -- House shape via TextLabel font
-    shield   = "S",
-    user     = "U",
-    eye      = "E",
-    settings = "G",
-    search   = "F",
-    close    = "x",
-    minimize = "-",
-    zap      = "Z",
-    sparkles = "*",
-    grid     = "#",
-    chevron  = ">",
-    check    = "v",
-    info     = "i",
-    bell     = "B",
-    trash    = "T",
-    edit     = "P",
-    key      = "K",
-    lock     = "L",
-    unlock   = "O",
-    warning  = "!",
-    error    = "X",
-    success  = "v",
-    discord  = "D",
-    sword    = "/",
-    bolt     = "Z",
-    play     = ">",
-    pause    = "||",
-    moon     = "M",
-    sun      = "*",
-    folder   = "F",
-    terminal = ">",
-    star     = "*",
-    heart    = "h",
+    home          = "⌂",
+    dashboard     = "▣",
+    grid          = "▦",
+    menu          = "☰",
+
+    user          = "◉",
+    users         = "◎",
+    profile       = "○",
+
+    search        = "⌕",
+    filter        = "≣",
+    settings      = "⚙",
+    tools         = "✦",
+
+    eye           = "◐",
+    eye_off       = "◑",
+
+    shield        = "⬒",
+    lock          = "⌺",
+    unlock        = "⌻",
+    key           = "⌘",
+
+    folder        = "▤",
+    file          = "▥",
+    terminal      = "❯",
+    code          = "⌘",
+
+    play          = "▶",
+    pause         = "❚❚",
+    stop          = "■",
+    refresh       = "↻",
+
+    chevron_right = "›",
+    chevron_left  = "‹",
+
+    arrow_right   = "→",
+    arrow_left    = "←",
+    arrow_up      = "↑",
+    arrow_down    = "↓",
+
+    check         = "✓",
+    close         = "✕",
+    add           = "+",
+    remove        = "−",
+
+    info          = "i",
+    warning       = "!",
+    error         = "✕",
+    success       = "✓",
+
+    bell          = "◈",
+    star          = "✦",
+    sparkles      = "✧",
+    zap           = "⟡",
+
+    moon          = "◔",
+    sun           = "◕",
+
+    edit          = "✎",
+    trash         = "⌫",
+
+    discord       = "◈",
+    sword         = "†",
+    bolt          = "⟡",
+    heart         = "♡",
 }
+
+return IconSymbols
 
 -- FIX: Use rbxassetid image icons where available for crisp rendering
 -- These are Roblox built-in or common free asset IDs
@@ -1415,7 +1454,7 @@ function NovaField:CreateWindow(options)
         AnchorPoint            = Vector2.new(0, 0.5),
         Position               = UDim2.new(0, 12, 0.5, 0),
         Size                   = UDim2.new(0, 16, 0, 16),
-        Text                   = "?",
+        Text                   = "⌕",
         TextColor3             = T.Muted,
         TextSize               = 14,
         Font                   = Enum.Font.GothamBold,
@@ -2128,7 +2167,7 @@ function NovaField:CreateWindow(options)
                     Size                   = UDim2.new(0.4, 0, 1, 0),
                     Text                   = tostring(default) .. suffix,
                     TextColor3             = T.Accent,
-                    TextSize               = 13,
+                    TextSize               = 9,
                     Font                   = Enum.Font.GothamBold,
                     TextXAlignment         = Enum.TextXAlignment.Right,
                     ZIndex                 = 6,
@@ -2142,7 +2181,7 @@ function NovaField:CreateWindow(options)
                         Size                   = UDim2.new(1, 0, 0, 14),
                         Text                   = desc,
                         TextColor3             = T.SubText,
-                        TextSize               = 11,
+                        TextSize               = 9,
                         Font                   = Enum.Font.Gotham,
                         TextXAlignment         = Enum.TextXAlignment.Left,
                         ZIndex                 = 5,
