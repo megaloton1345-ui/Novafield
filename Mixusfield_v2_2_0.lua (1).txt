@@ -1264,83 +1264,202 @@ function Mixusfield:CreateWindow(options)
             local SectionObj = { _Window=self._Window, _Save=self._Save, _Theme=T }
 
             -- ── CreateToggle ──────────────────────────────────────
-            -- FIX: No dummy frame. Row uses absolute positioning for
-            --      the track so the card auto-sizes to the text only.
-            function SectionObj:CreateToggle(opts)
-                local title    = opts.Title       or "Toggle"
-                local desc     = opts.Description or ""
-                local saveKey2 = opts.Flag        or title
-                local callback = opts.Callback
+function SectionObj:CreateToggle(opts)
+    local title    = opts.Title       or "Toggle"
+    local desc     = opts.Description or ""
+    local saveKey2 = opts.Flag        or title
+    local callback = opts.Callback
 
-                -- FIX: load saved value, default properly to false if nil
-                local rawDef = opts.Default == true
-                local saved  = self._Save:Get(saveKey2, nil)
-                local default = (saved ~= nil) and (saved == true) or rawDef
+    -- Saved value
+    local rawDef = opts.Default == true
+    local saved  = self._Save:Get(saveKey2, nil)
+    local default = (saved ~= nil) and (saved == true) or rawDef
 
-                local Card = MakeCard(#SecContent:GetChildren())
+    -- Main Card
+    local Card = MakeCard(#SecContent:GetChildren())
+    Card.AutomaticSize = Enum.AutomaticSize.Y
+    Card.Size = UDim2.new(1,0,0,0)
+    Card.ClipsDescendants = true
 
-                -- FIX: Use a single UIListLayout on the card with auto sizes
-                MakeList(Card, 4)
+    local Padding = Instance.new("UIPadding")
+    Padding.Parent = Card
+    Padding.PaddingTop = UDim.new(0,14)
+    Padding.PaddingBottom = UDim.new(0,14)
+    Padding.PaddingLeft = UDim.new(0,16)
+    Padding.PaddingRight = UDim.new(0,16)
 
-                -- Title + track row
-                local TitleRow = New("Frame", { Parent=Card, BackgroundTransparency=1,
-                    Size=UDim2.new(1,0,0,24), ZIndex=5 })
+    local Layout = MakeList(Card, 6)
+    Layout.HorizontalAlignment = Enum.HorizontalAlignment.Left
+    Layout.SortOrder = Enum.SortOrder.LayoutOrder
 
-                local tLbl = New("TextLabel", { Parent=TitleRow, BackgroundTransparency=1,
-                    Position=UDim2.new(0,0,0,0), Size=UDim2.new(1,-58,1,0),
-                    Text=title, TextColor3=T.Text, TextSize=14, Font=Enum.Font.GothamBold,
-                    TextXAlignment=Enum.TextXAlignment.Left,
-                    TextYAlignment=Enum.TextYAlignment.Center, ZIndex=5 })
-                Tag(tLbl, "Text", "TextColor3")
+    -- ── Top Row ─────────────────────
+    local TopRow = New("Frame", {
+        Parent = Card,
+        BackgroundTransparency = 1,
+        Size = UDim2.new(1,0,0,30),
+        AutomaticSize = Enum.AutomaticSize.None
+    })
 
-                local TrackW, TrackH = 48, 24
-                local Track = New("Frame", { Parent=TitleRow, BackgroundColor3=T.Toggle,
-                    AnchorPoint=Vector2.new(1,0.5), Position=UDim2.new(1,0,0.5,0),
-                    Size=UDim2.new(0,TrackW,0,TrackH), ZIndex=6 })
-                Tag(Track, "Toggle"); MakeCorner(Track, 12)
-                local Knob = New("Frame", { Parent=Track, BackgroundColor3=Color3.fromRGB(200,200,200),
-                    AnchorPoint=Vector2.new(0,0.5), Position=UDim2.new(0,3,0.5,0),
-                    Size=UDim2.new(0,18,0,18), ZIndex=7 })
-                MakeCorner(Knob, 9)
+    -- Title
+    local tLbl = New("TextLabel", {
+        Parent = TopRow,
+        BackgroundTransparency = 1,
+        Position = UDim2.new(0,0,0,0),
+        Size = UDim2.new(1,-80,1,0),
+        Text = title,
+        TextColor3 = T.Text,
+        TextSize = 17,
+        Font = Enum.Font.GothamBold,
+        TextXAlignment = Enum.TextXAlignment.Left,
+        TextYAlignment = Enum.TextYAlignment.Center,
+        ZIndex = 5
+    })
+    Tag(tLbl, "Text", "TextColor3")
 
-                if desc ~= "" then
-                    local dLbl = New("TextLabel", { Parent=Card, BackgroundTransparency=1,
-                        Size=UDim2.new(1,-58,0,13), Text=desc, TextColor3=T.SubText,
-                        TextSize=11, Font=Enum.Font.Gotham,
-                        TextXAlignment=Enum.TextXAlignment.Left, ZIndex=5 })
-                    Tag(dLbl, "SubText", "TextColor3")
-                end
+    -- Toggle Sizes
+    local TrackW, TrackH = 58, 30
+    local KnobSize = 24
 
-                local ToggleBtn = New("TextButton", { Parent=Card, BackgroundTransparency=1,
-                    Size=UDim2.new(1,0,1,0), Text="", ZIndex=8 })
+    -- Toggle Track
+    local Track = New("Frame", {
+        Parent = TopRow,
+        BackgroundColor3 = T.Toggle,
+        AnchorPoint = Vector2.new(1,0.5),
+        Position = UDim2.new(1,0,0.5,0),
+        Size = UDim2.new(0,TrackW,0,TrackH),
+        ZIndex = 6
+    })
+    Tag(Track, "Toggle")
+    MakeCorner(Track, 999)
 
-                local value = default
-                local function UpdateVisual(v, anim)
-                    local d = anim and 0.2 or 0
-                    if v then
-                        Tween(Track, {BackgroundColor3=T.Accent}, d)
-                        Tween(Knob,  {Position=UDim2.new(1,-21,0.5,0), BackgroundColor3=Color3.fromRGB(255,255,255)}, d)
-                    else
-                        Tween(Track, {BackgroundColor3=T.Toggle}, d)
-                        Tween(Knob,  {Position=UDim2.new(0,3,0.5,0),   BackgroundColor3=Color3.fromRGB(180,180,180)}, d)
-                    end
-                end
-                UpdateVisual(value, false)
+    -- Inner Glow
+    local Stroke = Instance.new("UIStroke")
+    Stroke.Parent = Track
+    Stroke.Color = Color3.fromRGB(255,255,255)
+    Stroke.Transparency = 0.88
+    Stroke.Thickness = 1
 
-                ToggleBtn.MouseButton1Click:Connect(function()
-                    value = not value; UpdateVisual(value, true)
-                    self._Save:Set(saveKey2, value); SafeCall(callback, value)
-                end)
-                ToggleBtn.MouseEnter:Connect(function() Tween(Card,{BackgroundColor3=T.CardAlt},0.15) end)
-                ToggleBtn.MouseLeave:Connect(function() Tween(Card,{BackgroundColor3=T.Card},0.15)   end)
+    -- Knob
+    local Knob = New("Frame", {
+        Parent = Track,
+        BackgroundColor3 = Color3.fromRGB(255,255,255),
+        AnchorPoint = Vector2.new(0,0.5),
+        Position = UDim2.new(0,3,0.5,0),
+        Size = UDim2.new(0,KnobSize,0,KnobSize),
+        ZIndex = 7
+    })
+    MakeCorner(Knob, 999)
 
-                table.insert(self._Window._AllElements, {_Frame=Card, _Title=title})
-                local obj = {}
-                function obj:Set(v) value=v; UpdateVisual(v,true); self._Save:Set(saveKey2,v); SafeCall(callback,v) end
-                function obj:Get() return value end
-                return obj
-            end
+    -- Knob Shadow
+    local KStroke = Instance.new("UIStroke")
+    KStroke.Parent = Knob
+    KStroke.Color = Color3.fromRGB(0,0,0)
+    KStroke.Transparency = 0.75
+    KStroke.Thickness = 1
 
+    -- Description
+    if desc ~= "" then
+        local dLbl = New("TextLabel", {
+            Parent = Card,
+            BackgroundTransparency = 1,
+            AutomaticSize = Enum.AutomaticSize.Y,
+            Size = UDim2.new(1,-70,0,0),
+            Text = desc,
+            TextWrapped = true,
+            TextColor3 = T.SubText,
+            TextSize = 13,
+            Font = Enum.Font.Gotham,
+            TextXAlignment = Enum.TextXAlignment.Left,
+            TextYAlignment = Enum.TextYAlignment.Top,
+            ZIndex = 5
+        })
+        Tag(dLbl, "SubText", "TextColor3")
+    end
+
+    -- Full Button Overlay
+    local ToggleBtn = New("TextButton", {
+        Parent = Card,
+        BackgroundTransparency = 1,
+        Size = UDim2.new(1,0,1,0),
+        Text = "",
+        AutoButtonColor = false,
+        ZIndex = 20
+    })
+
+    -- Value
+    local value = default
+
+    -- Visual Update
+    local function UpdateVisual(v, anim)
+        local d = anim and 0.22 or 0
+
+        if v then
+            Tween(Track, {
+                BackgroundColor3 = T.Accent
+            }, d)
+
+            Tween(Knob, {
+                Position = UDim2.new(1,-(KnobSize+3),0.5,0)
+            }, d)
+        else
+            Tween(Track, {
+                BackgroundColor3 = T.Toggle
+            }, d)
+
+            Tween(Knob, {
+                Position = UDim2.new(0,3,0.5,0)
+            }, d)
+        end
+    end
+
+    UpdateVisual(value, false)
+
+    -- Click
+    ToggleBtn.MouseButton1Click:Connect(function()
+        value = not value
+
+        UpdateVisual(value, true)
+
+        self._Save:Set(saveKey2, value)
+        SafeCall(callback, value)
+    end)
+
+    -- Hover
+    ToggleBtn.MouseEnter:Connect(function()
+        Tween(Card,{
+            BackgroundColor3 = T.CardAlt
+        },0.15)
+    end)
+
+    ToggleBtn.MouseLeave:Connect(function()
+        Tween(Card,{
+            BackgroundColor3 = T.Card
+        },0.15)
+    end)
+
+    -- Store
+    table.insert(self._Window._AllElements,{
+        _Frame = Card,
+        _Title = title
+    })
+
+    -- API
+    local obj = {}
+
+    function obj:Set(v)
+        value = v
+        UpdateVisual(v, true)
+
+        self._Save:Set(saveKey2, v)
+        SafeCall(callback, v)
+    end
+
+    function obj:Get()
+        return value
+    end
+
+    return obj
+end
             -- ── CreateSlider ──────────────────────────────────────
             function SectionObj:CreateSlider(opts)
                 local title    = opts.Title       or "Slider"
